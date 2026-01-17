@@ -5,13 +5,17 @@ Created on Tue Dec 23 13:56:21 2025
 
 @author: rafal
 """
-
+import openai
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
 from fpdf import FPDF
 import datetime
+import os
+import urllib.request
+
+
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -325,79 +329,568 @@ class Visualizer:
             return fig
         except: return None
 
+
+
+class PDFReport(FPDF):
+    """Rozszerzona klasa FPDF do obsługi Markdown i Unicode."""
+    def header(self):
+        try:
+            # Próbujemy ustawić DejaVu
+            self.set_font('DejaVu', '', 10)
+        except RuntimeError:
+            # Jeśli DejaVu nie istnieje, używamy Arial (standardowa, zawsze dostępna)
+            self.set_font('Arial', '', 10)
+            
+        self.cell(0, 10, 'AI Report', 0, 1, 'R')
+        self.ln(5)
+
+    def chapter_title(self, label):
+        try:
+            self.set_font('DejaVu', 'B', 14)
+        except RuntimeError:
+            self.set_font('Arial', 'B', 14)
+            
+        self.cell(0, 10, label, 0, 1, 'L')
+        self.ln(2)
+
+    def chapter_body(self, text):
+        try:
+            self.set_font('DejaVu', '', 11)
+        except RuntimeError:
+            self.set_font('Arial', '', 11)
+            
+        self.multi_cell(0, 6, text)
+        self.ln()
+
 class ReportGenerator:
-    """Generating PDF reports and AI Prompts."""
+    """Generowanie raportów PDF i analizy AI (Perplexity API) z cytowaniami."""
     
     @staticmethod
+    def ensure_font_exists():
+        """Pobiera czcionkę DejaVuSans.ttf jeśli nie istnieje."""
+        font_path = "DejaVuSans.ttf"
+        if not os.path.exists(font_path):
+            url = "https://github.com/reingart/pyfpdf/raw/master/fpdf/font/DejaVuSans.ttf"
+            try:
+                urllib.request.urlretrieve(url, font_path)
+            except:
+                pass 
+        return font_path
+
+    @staticmethod
+    def clean_text(text):
+        """Kompleksowe czyszczenie tekstu z niebezpiecznych znaków Unicode i naprawa sklejonych słów."""
+        if not isinstance(text, str):
+            return str(text)
+            
+        replacements = {
+            # --- NAPRAWA SKLEJONYCH SŁÓW (Wehaircutthisby) ---
+            '\u200b': ' ',   # Zero-width space -> ZAMIENIAMY NA SPACJĘ (kluczowe!)
+            '\xa0': ' ',     # Non-breaking space -> spacja
+            
+            # --- NAPRAWA DZIWNYCH GWIAZDEK ---
+            '∗': '*',        # Operator matematyczny -> zwykła gwiazdka
+            '\u2217': '*',   # To samo (kod unicode)
+            
+            # --- STANDARDOWE ZAMIENNIKI ---
+            '\u2013': '-', '\u2014': '-', '\u2011': '-',
+            '\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"',
+            '\u2022': '*', '\u2026': '...', 
+            '\u2248': '~', '\u2260': '!=', '\u2264': '<=', '\u2265': '>=',
+            '\u2191': '^', '\u2193': 'v', '\u2192': '->',
+            '€': 'EUR', '£': 'GBP', '¥': 'JPY',
+        }
+        
+        for char, repl in replacements.items():
+            text = text.replace(char, repl)
+            
+        # Dodatkowa naprawa: spacja po kropce, jeśli jej brakuje (np. "share.We")
+        # Ale tylko jeśli po kropce jest duża litera
+        import re
+        text = re.sub(r'\.(?=[A-Z])', '. ', text)
+        
+        # Usuwanie podwójnych spacji
+        while '  ' in text:
+            text = text.replace('  ', ' ')
+            
+        try:
+            return text.encode('latin-1', 'replace').decode('latin-1')
+        except:
+            return text
+
+    # ... (metody generate_ai_prompt i get_ai_analysis bez zmian - skopiuj je z poprzedniej wersji) ...
+    @staticmethod
     def generate_ai_prompt(ticker, data, info):
-        # Safe value retrieval
+        # SKOPIUJ Z POPRZEDNIEJ WERSJI
         revenue = data.get('Revenue', 0)
         net_income = data.get('Net Income', 0)
         gross_profit = data.get('Gross Profit', 0)
-        
-        # Calculate margin (safe division)
         gross_margin = (gross_profit / revenue * 100) if revenue else 0
         
-        prompt = f"""
-        As a fundamental analyst, evaluate the company {ticker} based on the following data:
-        - Revenue: ${revenue:,.0f}
-        - Net Income: ${net_income:,.0f}
-        - Gross Margin: {gross_margin:.2f}%
-        - P/E Ratio: {info.get('trailingPE', 'N/A')}
-        - Debt/EBITDA: {info.get('debtToEquity', 'N/A')} (proxy via D/E)
+        # Pobieranie waluty (jeśli dostępna, domyślnie USD)
+        currency = info.get('currency', 'USD')
+        # --- POPRAWKA ---
+        # 1. Cena jest w 'info', a nie w 'data'.
+        # 2. Używamy standardowych kluczy yfinance.
+        current_price = info.get('currentPrice')
         
-        Focus on risks (e.g., high COGS, R&D) and potential growth catalysts.
-        Format the response using Markdown.
+        # Zabezpieczenie (fallback): jeśli nie ma 'currentPrice', szukaj 'regularMarketPrice' lub 'previousClose'
+        if not current_price:
+            current_price = info.get('regularMarketPrice') or info.get('previousClose') or 0
+
+        prompt = f"""
+       Przygotuj obszerny, profesjonalny EQUITY RESEARCH REPORT o spółce: {ticker} w języku angielskim.
+
+ROLA:
+Jesteś starszym analitykiem (Senior Equity Analyst) w banku inwestycyjnym Tier-1 (np. Goldman Sachs, Morgan Stanley). Twój styl pisania musi być "instytucjonalny": zwięzły, oparty na danych, nastawiony na wnioski inwestycyjne (actionable insights), a nie na opowiadanie historii.
+
+DANE FUNDAMENTALNE (WSAD):
+
+Przychody (LTM): {revenue:,.0f} {currency}
+
+Zysk Netto (LTM): {net_income:,.0f} {currency}
+
+Marża Brutto: {gross_margin:.2f}%
+
+P/E Ratio: {info.get('trailingPE', 'N/A')}
+
+Debt/Equity: {info.get('debtToEquity', 'N/A')}
+
+PEG Ratio: {info.get('pegRatio', 'N/A')}
+
+STRUKTURA RAPORTU (Ściśle zachowaj kolejność i formatowanie):
+
+1. INVESTMENT THESIS 
+
+Masthead (Nagłówek): Stwórz tabelę na samej górze z kluczowymi danymi:
+
+Rating (np. BUY / HOLD / SELL - wyróżnione)
+
+Price Target (Cena docelowa)
+
+Current Price  {current_price} {currency}
+
+Implied Upside/Downside (%)
+
+Risk Profile (np. High/Medium)
+
+Investment Thesis: To jest najważniejsza sekcja. Nie pisz "wstępu". Od razu podaj główne argumenty za rekomendacją. Dlaczego teraz? Co rynek przeoczył? (Max 3-4 mocne akapity).
+
+Catalyst Watch: Krótka lista z datami (np. nadchodzące wyniki, decyzje regulacyjne, premiery produktów), które mogą ruszyć kursem w najbliższych 6 miesiącach.
+
+2. FINANCIAL ESTIMATES & SUMMARY (Tabela prognoz)
+
+Zamiast ściany tekstu, stwórz tabelę Markdown "Financial Summary Estimates" prognozującą wyniki na 3 lata w przód (np. 2026E, 2027E, 2028E). Uwzględnij: Revenue, EBITDA, EPS, P/E Ratio, FCF Yield.
+
+Pod tabelą krótki komentarz analityczny dotyczący dynamiki wzrostu i dźwigni operacyjnej.
+
+3. VALUATION (Szczegółowa wycena)
+
+Metodologia: Zastosuj podejście hybrydowe (DCF + Multiples).
+
+SOTP Table (Sum-of-the-Parts): Jeśli spółka ma różne segmenty, KONIECZNIE stwórz tabelę SOTP wyceniającą każdy segment osobno (np. Segment A x Multiple + Segment B x Multiple = Enterprise Value). Jeśli SOTP nie pasuje, zrób tabelę "Valuation Matrix" pokazującą implikowaną cenę przy różnych założeniach WACC i Terminal Growth.
+
+Krótkie uzasadnienie przyjętych mnożników (dlaczego taki P/E lub EV/EBITDA?).
+
+4. SCENARIUSZE CENOWE (Bull / Base / Bear)
+Zamiast opisów, przedstaw to w formie tabeli lub listy z przypisanym prawdopodobieństwem:
+
+Bull Case ($XXX): Co musi się udać perfekcyjnie? (np. szybsza adopcja produktu, wzrost marży). Prawdopodobieństwo (np. 20%).
+
+Base Case ($XXX): Twój główny scenariusz. Prawdopodobieństwo (np. 50%).
+
+Bear Case ($XXX): Co pójdzie nie tak? (np. recesja, utrata klienta). Prawdopodobieństwo (np. 30%).
+
+5. KEY RISKS (Ryzyka inwestycyjne)
+
+Konkretne i punktowe (np. ryzyko regulacyjne, koncentracja klientów, ryzyko walutowe). Unikaj ogólników typu "ryzyko rynkowe".
+
+6. SEGMENT ANALYSIS (Analiza operacyjna)
+
+Krótki przegląd wyników per segment/geografia.
+
+Skup się na rentowności i trendach (np. "Segment X rośnie o 20% r/r, ale marże spadają").
+
+7. APPENDIX & DISCLOSURES
+
+Dodaj profesjonalną notkę prawną (Disclaimer) na końcu: "For sophisticated investors only. This report is for educational purposes and does not constitute financial advice."
+
+Analyst Certification: Oświadczenie, że opinie są własne.
+
+WYMAGANIA TECHNICZNE:
+
+Język raportu: Angielski (Profesjonalny żargon finansowy).
+
+Formatowanie: Używaj Markdown do tworzenia tabel, pogrubień i nagłówków.
+
+Styl: "Bottom-line up front" (wnioski na początku). Używaj strony czynnej.
+
+Nie cytuj dosłownie, parafrazuj i syntezuj. 
         """
         return prompt
 
     @staticmethod
-    def create_pdf(ticker, analysis_text, metrics):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
+    def get_ai_analysis(api_key, prompt):
+        # SKOPIUJ Z POPRZEDNIEJ WERSJI
+        try:
+            client = openai.OpenAI(
+                api_key=api_key, 
+                base_url="https://api.perplexity.ai"
+            )
+            response = client.chat.completions.create(
+                model="sonar-pro",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=10000
+            )
+            content = response.choices[0].message.content
+            citations = getattr(response, 'citations', [])
+            return content, citations
+        except Exception as e:
+            return f"❌ Błąd API: {str(e)}", []
+    @staticmethod
+    def draw_professional_table(pdf, table_data, title="", col_widths=None, max_width=190):
+        """
+        Rysuje profesjonalną tabelę w PDF z zawijaniem tekstu i automatycznym dostosowaniem.
         
-        # Title
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, txt=f"Financial Report: {ticker}", ln=1, align='C')
+        Args:
+            pdf: Obiekt FPDF
+            table_data: Lista list (pierwsza = nagłówek, reszta = wiersze)
+            title: Opcjonalny tytuł tabeli
+            col_widths: Lista szerokości kolumn. Jeśli None, oblicza automatycznie.
+            max_width: Maksymalna dostępna szerokość (domyślnie 190mm)
+        """
         
-        # Date
-        pdf.set_font("Arial", size=10)
-        pdf.ln(10)
-        pdf.cell(200, 10, txt=f"Generated on: {datetime.date.today()}", ln=1)
-        
-        # Metrics
-        pdf.ln(5)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="Key Metrics:", ln=1)
-        pdf.set_font("Arial", size=10)
-        
-        for k, v in metrics.items():
-            pdf.cell(200, 8, txt=f"{k}: {v}", ln=1)
+        if not table_data or len(table_data) == 0:
+            return
             
-        # Analysis
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="AI Analysis (Summary):", ln=1)
-        pdf.set_font("Arial", size=10)
+        # Konwersja wszystkich danych do stringów i czyszczenie
+        table_data = [[ReportGenerator.clean_text(str(cell)) for cell in row] for row in table_data]
         
-        # Character encoding handling (latin-1 cleanup)
-        replacements = {
-            'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
-            'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
-        }
-        safe_text = analysis_text
-        for pl, lat in replacements.items():
-            safe_text = safe_text.replace(pl, lat)
+        num_cols = len(table_data[0])
+        num_rows = len(table_data)
+        
+        # --- KROK 1: Automatyczne obliczanie szerokości kolumn ---
+        if col_widths is None:
+            col_widths = [max_width / num_cols] * num_cols  # Domyślnie równa szerokość
+        else:
+            # Normalizuj do całkowitej szerokości max_width
+            total = sum(col_widths)
+            col_widths = [(w / total) * max_width for w in col_widths]
+        
+        # --- KROK 2: Sprawdź czy tabela zmieści się na stronie ---
+        required_height = ReportGenerator._estimate_table_height(
+            table_data, col_widths, font_size=9
+        )
+        
+        # Jeśli brakuje miejsca, dodaj nową stronę
+        if pdf.get_y() + required_height > pdf.h - pdf.b_margin:
+            pdf.add_page()
+        
+        # --- KROK 3: Rysuj tytuł (opcjonalnie) ---
+        if title:
+            pdf.set_font('DejaVu', 'B', 11)
+            pdf.cell(0, 8, title, 0, 1, 'L')
+            pdf.ln(2)
+        
+        # --- KROK 4: Rysuj nagłówek ---
+        y_start = pdf.get_y()
+        header = table_data[0]
+        row_height = ReportGenerator._draw_table_row(
+            pdf, header, col_widths, 
+            font_size=9, 
+            is_header=True, 
+            bg_color=(200, 200, 200)
+        )
+        
+        # --- KROK 5: Rysuj wiersze danych ---
+        for i, row in enumerate(table_data[1:]):
+            # Pad row if needed
+            while len(row) < num_cols:
+                row.append("")
             
-        safe_text = safe_text.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 10, txt=safe_text)
+            # Zmiennie kolory rzędów (zebra stripe dla lepszej czytelności)
+            bg_color = (245, 245, 245) if i % 2 == 0 else (255, 255, 255)
+            
+            row_height = ReportGenerator._draw_table_row(
+                pdf, row, col_widths, 
+                font_size=9, 
+                is_header=False, 
+                bg_color=bg_color
+            )
         
-        return pdf.output(dest='S').encode('latin-1')
+        pdf.ln(4)
+    
+    @staticmethod
+    def _draw_table_row(pdf, cells, col_widths, font_size=9, is_header=False, bg_color=None):
+        """
+        Rysuje pojedynczy wiersz tabeli z Multi-cell zawijaniem.
+        Zwraca wysokość wiersza.
+        """
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        
+        # Ustaw font
+        font_style = 'B' if is_header else ''
+        pdf.set_font('DejaVu', font_style, font_size)
+        
+        # Krok 1: Oblicz wysokość wiersza (maksymalna z wszystkich kolumn)
+        line_heights = []
+        for i, text in enumerate(cells):
+            col_w = col_widths[i]
+            x, y = pdf.get_x(), pdf.get_y()
+            
+            # Tymczasowe multi_cell do obliczenia wysokości
+            pdf.multi_cell(col_w, 5, text, border=0)
+            new_y = pdf.get_y()
+            
+            height = new_y - y
+            line_heights.append(height)
+            pdf.set_xy(x, y)
+        
+        row_height = max(line_heights) if line_heights else 5
+        
+        # Krok 2: Rysuj tło i obramowanie
+        x = x_start
+        for i, col_w in enumerate(col_widths):
+            if bg_color:
+                pdf.set_fill_color(*bg_color)
+                pdf.rect(x, y_start, col_w, row_height, 'FD')
+            else:
+                pdf.rect(x, y_start, col_w, row_height)
+            x += col_w
+        
+        # Krok 3: Wpisz tekst do komórek
+        x = x_start
+        for i, text in enumerate(cells):
+            col_w = col_widths[i]
+            pdf.set_xy(x, y_start + 1)
+            
+            # Wyrównanie: nagłówek do środka, dane do lewej
+            align = 'C' if is_header else 'L'
+            pdf.multi_cell(col_w, 5, text, border=0, align=align)
+            
+            x += col_w
+        
+        # Ustaw pozycję na koniec wiersza
+        pdf.set_xy(x_start, y_start + row_height)
+        
+        return row_height
+    
+    @staticmethod
+    def _estimate_table_height(table_data, col_widths, font_size=9):
+        """Estymuje wysokość tabeli (przybliżenie dla sprawdzenia czy zmieści się na stronie)."""
+        # Prosta heurystyka: 6 px na linię tekstu + marża
+        num_rows = len(table_data)
+        avg_height_per_row = 15  # pixels
+        return num_rows * avg_height_per_row + 10  # +10 dla marginesu
+
+
+    
+    @staticmethod
+    def create_pdf(ticker, analysis_text, metrics, citations=[]):
+        # 1. Przygotowanie fontów i czyszczenie tekstu
+            font_path = ReportGenerator.ensure_font_exists()
+            analysis_text = ReportGenerator.clean_text(analysis_text)
+            
+            pdf = PDFReport()
+            font_loaded = False
+            try:
+                pdf.add_font('DejaVu', '', font_path, uni=True)
+                pdf.add_font('DejaVu', 'B', font_path, uni=True)
+                font_loaded = True
+            except: pass
+            
+            pdf.add_page()
+            
+            # Funkcja pomocnicza do ustawiania fontu
+            def set_safe_font(family, style, size):
+                try:
+                    if font_loaded and family == 'DejaVu': pdf.set_font('DejaVu', style, size)
+                    else: pdf.set_font('Arial', style, size)
+                except: pdf.set_font('Arial', style, size)
+    
+            # --- NOWA FUNKCJA: Drukowanie z obsługą **POGRUBIENIA** ---
+            def print_formatted_text(text):
+                """
+                Parsuje tekst:
+                - Zamienia **tekst** na pogrubienie
+                - Usuwa znaki _ (kursywa), bo nie mamy załadowanego fontu Italic
+                - Używa pdf.write() zamiast multi_cell() dla płynnego tekstu
+                """
+                # Usuwamy kursywę (podłogi), żeby nie śmieciły (DejaVu w tym kodzie nie ma załadowanego stylu 'I')
+                text = text.replace('_', '')
+                
+                # Dzielimy tekst po znaczniku pogrubienia '**'
+                # Co drugi element tablicy będzie tym, który ma być pogrubiony
+                parts = text.split('**')
+                
+                for i, part in enumerate(parts):
+                    if i % 2 == 1:
+                        # Nieparzyste indeksy to tekst wewnątrz **...** -> POGRUBIAMY
+                        set_safe_font('DejaVu', 'B', 11)
+                        pdf.write(5, part)
+                    else:
+                        # Parzyste to zwykły tekst
+                        set_safe_font('DejaVu', '', 11)
+                        pdf.write(5, part)
+                
+                # Na koniec akapitu przejście do nowej linii + odstęp
+                pdf.ln(6)
+    
+            # --- FUNKCJA RYSUJĄCA WIERSZ TABELI ---
+            def draw_table_row(cells, col_widths, is_header=False):
+                if is_header: set_safe_font('DejaVu', 'B', 9)
+                else: set_safe_font('DejaVu', '', 9)
+    
+                # KROK 1: Obliczanie wysokości (Symulacja na biało)
+                pdf.set_text_color(255, 255, 255)
+                original_auto_page_break = pdf.auto_page_break
+                pdf.set_auto_page_break(False)
+                
+                line_heights = []
+                sim_y_start = pdf.get_y()
+                sim_x_start = pdf.l_margin
+                
+                for i, text in enumerate(cells):
+                    col_w = col_widths[i] if i < len(col_widths) else (190 / len(cells))
+                    pdf.set_xy(sim_x_start, sim_y_start)
+                    y_before = pdf.get_y()
+                    pdf.multi_cell(col_w, 5, str(text), border=0)
+                    y_after = pdf.get_y()
+                    line_heights.append(y_after - y_before)
+                    sim_x_start += col_w
+    
+                pdf.set_text_color(0, 0, 0) # Powrót do czarnego
+                pdf.set_auto_page_break(original_auto_page_break, margin=10)
+                pdf.set_xy(pdf.l_margin, sim_y_start)
+    
+                row_height = max(line_heights) if line_heights else 5
+                row_height = max(row_height, 5)
+    
+                if pdf.get_y() + row_height > pdf.h - 15:
+                    pdf.add_page()
+                    if is_header: set_safe_font('DejaVu', 'B', 9)
+                    else: set_safe_font('DejaVu', '', 9)
+    
+                # KROK 2: Rysowanie
+                y_start = pdf.get_y()
+                x_start = pdf.l_margin
+                
+                for i, text in enumerate(cells):
+                    col_w = col_widths[i] if i < len(col_widths) else (190 / len(cells))
+                    pdf.set_xy(x_start, y_start)
+                    pdf.rect(x_start, y_start, col_w, row_height)
+                    align_mode = 'C' if is_header else 'L'
+                    pdf.multi_cell(col_w, 5, str(text), border=0, align=align_mode)
+                    x_start += col_w
+    
+                pdf.set_xy(pdf.l_margin, y_start + row_height)
+    
+            # ---------------------------------------------------------
+            # BUDOWANIE RAPORTU
+            # ---------------------------------------------------------
+            
+            set_safe_font('DejaVu', 'B', 16)
+            pdf.cell(0, 10, txt=f"AI Investment Report: {ticker}", ln=1, align='C')
+            pdf.ln(5)
+            
+            pdf.set_fill_color(240, 240, 240)
+            if metrics:
+                pdf.rect(10, pdf.get_y(), 190, 20, 'F')
+                set_safe_font('DejaVu', '', 10)
+                pdf.set_y(pdf.get_y() + 5)
+                col_width = 190 / max(1, len(metrics))
+                for k, v in metrics.items():
+                    clean_k = ReportGenerator.clean_text(str(k))
+                    clean_v = ReportGenerator.clean_text(str(v))
+                    if not font_loaded:
+                        clean_k = clean_k.encode('latin-1', 'ignore').decode('latin-1')
+                        clean_v = clean_v.encode('latin-1', 'ignore').decode('latin-1')
+                    pdf.cell(col_width, 10, f"{clean_k}: {clean_v}", 0, 0, 'C')
+                pdf.ln(20)
+    
+            set_safe_font('DejaVu', '', 11)
+            lines = analysis_text.split('\n')
+            in_table = False
+            table_header = []
+            table_rows = []
+    
+            for i, line in enumerate(lines):
+                line = line.strip()
+                
+                # Tabela
+                if line.startswith('|'):
+                    in_table = True
+                    cells = [ReportGenerator.clean_text(c.strip()) for c in line.split('|')]
+                    if cells and cells[0] == '': cells.pop(0)
+                    if cells and cells[-1] == '': cells.pop(-1)
+                    
+                    if '---' in line: continue
+                    if not table_header: table_header = cells
+                    else: table_rows.append(cells)
+                    continue
+                
+                if (in_table and not line.startswith('|')) or (in_table and i == len(lines)-1):
+                    in_table = False
+                    if table_header:
+                        pdf.ln(2)
+                        num_cols = len(table_header)
+                        col_w = 190 / max(1, num_cols)
+                        col_widths = [col_w] * num_cols
+                        draw_table_row(table_header, col_widths, is_header=True)
+                        for row in table_rows:
+                            while len(row) < num_cols: row.append("")
+                            draw_table_row(row[:num_cols], col_widths, is_header=False)
+                        pdf.ln(5)
+                    table_header = []
+                    table_rows = []
+                    set_safe_font('DejaVu', '', 11)
+    
+                if not line:
+                    if not in_table: pdf.ln(2)
+                    continue
+                if in_table: continue
+    
+                if not font_loaded:
+                    line = line.encode('latin-1', 'replace').decode('latin-1')
+    
+                # --- RENDEROWANIE TREŚCI ---
+                if line.startswith('#'):
+                    set_safe_font('DejaVu', 'B', 12)
+                    pdf.cell(0, 8, line.lstrip('#').strip(), 0, 1)
+                    set_safe_font('DejaVu', '', 11)
+                    
+                elif line.startswith('- ') or line.startswith('* '):
+                    # Listy punktowane
+                    bullet = chr(149) if font_loaded else "-"
+                    pdf.set_x(15)
+                    # Tu też używamy nowej funkcji do formatowania treści punktu
+                    pdf.write(5, bullet + " ")
+                    print_formatted_text(line[2:])
+                    
+                else:
+                    # Zwykły akapit z obsługą BOLD (**)
+                    print_formatted_text(line)
+            if citations:
+                pdf.add_page()
+                set_safe_font('DejaVu', 'B', 14)
+                pdf.cell(0, 10, "Sources", 0, 1)
+                set_safe_font('DejaVu', '', 10)
+                
+                for i, link in enumerate(citations, 1):
+                    clean_link = ReportGenerator.clean_text(link)
+                    if not font_loaded:
+                        clean_link = clean_link.encode('latin-1', 'ignore').decode('latin-1')
+                    
+                    # Użycie write() zamiast multi_cell() dla płynnego zawijania
+                    pdf.write(6, f"[{i}] {clean_link}")
+                    pdf.ln(8) # Odstęp po każdym linku
+
+            return pdf.output(dest='S').encode('latin-1', errors='replace')
 
 # --- MAIN APPLICATION LOGIC ---
 def main():
-    st.title("🧩 san.key | Financial Flow Visualizer")
+    st.title("🧩 fin.sankey | Financial Flow Visualizer")
     st.markdown("Cash flow visualization for NASDAQ/S&P500 companies")
 
     # --- STATE MANAGEMENT (SESSION STATE) ---
@@ -543,74 +1036,210 @@ def main():
 
 
     with tab2:
-        info = data_dict['info']
-        met_col1, met_col2, met_col3, met_col4 = st.columns(4)
-        met_col1.metric("P/E Ratio", info.get("trailingPE", "N/A"))
-        met_col2.metric("Forward P/E", info.get("forwardPE", "N/A"))
-        met_col3.metric("PEG Ratio", info.get("pegRatio", "N/A"))
-        met_col4.metric("Current Ratio", info.get("currentRatio", "N/A"))
+        st.subheader("📊 Metrics Dashboard")
         
-        st.markdown("---")
-        st.subheader("Valuation Details")
-        market_cap = info.get("marketCap")
-        ebitda = info.get("ebitda")
+        # --- Data Preparation ---
+        info = data_dict.get("info", {}) or {}
+        bs = data_dict.get("balance_sheet", None)
         
-        st.json({
-            "Market Cap": f"${market_cap:,.0f}" if isinstance(market_cap, (int, float)) else market_cap,
-            "EBITDA": f"${ebitda:,.0f}" if isinstance(ebitda, (int, float)) else ebitda,
-            "Debt to Equity": info.get("debtToEquity"),
-            "Free Cash Flow": info.get("freeCashflow")
-        })
+        # Helper Formatters
+        def fmt_num(val, suffix="", compact=False):
+            if val is None: return "N/A"
+            try:
+                val = float(val)
+                # Jeśli flaga compact=True, skracamy duże liczby
+                if compact:
+                    if val >= 1e12: return f"{val/1e12:.2f}T{suffix}"
+                    if val >= 1e9: return f"{val/1e9:.2f}B{suffix}"
+                    if val >= 1e6: return f"{val/1e6:.2f}M{suffix}"
+                # Domyślne formatowanie dla mniejszych wskaźników (np. EPS, P/E)
+                return f"{val:,.2f}{suffix}"
+            except: return "N/A"
+
+        def fmt_pct(val):
+            if val is None: return "N/A"
+            try: return f"{float(val)*100:.2f}%"
+            except: return "N/A"
+            
+        def safe_div(a, b):
+            try:
+                return float(a) / float(b) if b else None
+            except: return None
+
+        # Calculations for custom metrics
+        total_assets = None
+        total_equity = None
+        if bs is not None and not bs.empty:
+            # Try finding Total Assets
+            for k in ["Total Assets", "Total assets"]:
+                if k in bs.index:
+                    total_assets = float(bs.loc[k].iloc[0])
+                    break
+            # Try finding Total Equity
+            for k in ["Total Stockholder Equity", "Total Equity", "Stockholders Equity"]:
+                if k in bs.index:
+                    total_equity = float(bs.loc[k].iloc[0])
+                    break
+        
+        shares = info.get("sharesOutstanding")
+        debt = info.get("totalDebt")
+        rev = info.get("totalRevenue")
+        empl = info.get("fullTimeEmployees")
+        
+        assets_per_share = safe_div(total_assets, shares)
+        debt_to_assets = safe_div(debt, total_assets)
+        debt_to_capital = safe_div(debt, (debt + total_equity) if (debt and total_equity) else None)
+        rev_per_empl = safe_div(rev, empl)
+
+        # --- CSS STYLING FOR CARDS ---
+        st.markdown("""
+        <style>
+        div[data-testid="stMetric"] {
+            background-color: #262730;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #464b5c;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # ==============================================================================
+        # SECTION 1: KEY HIGHLIGHTS
+        # ==============================================================================
+        st.markdown("#### 🔹 Key Highlights")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Revenue per Share", fmt_num(info.get("revenuePerShare")))
+        k2.metric("EPS (Trailing)", fmt_num(info.get("trailingEps")))
+        k3.metric("ROE", fmt_pct(info.get("returnOnEquity")))
+        k4.metric("ROIC", "N/A", help="Requires manual calculation (NOPAT/InvestedCapital)") 
+
+        k1b, k2b, k3b, k4b = st.columns(4)
+        k1b.metric("Debt / Equity", fmt_num(info.get("debtToEquity")))
+        k2b.metric("Book Value / Share", fmt_num(info.get("bookValue")))
+        k3b.metric("Current Ratio", fmt_num(info.get("currentRatio")))
+        k4b.metric("Quick Ratio", fmt_num(info.get("quickRatio")))
+
+        st.divider()
+
+        # ==============================================================================
+        # SECTION 2: VALUATION
+        # ==============================================================================
+        st.markdown("#### 💲 Valuation")
+        w1, w2, w3, w4 = st.columns(4)
+        w1.metric("Price / Sales (P/S)", fmt_num(info.get("priceToSalesTrailing12Months")))
+        w2.metric("Price / Earnings (P/E)", fmt_num(info.get("trailingPE")))
+        w3.metric("Price / Book (P/B)", fmt_num(info.get("priceToBook")))
+        w4.metric("PEG Ratio", fmt_num(info.get("pegRatio")))
+
+        w1b, w2b, w3b, w4b = st.columns(4)
+        w1b.metric("EV / Revenue", fmt_num(info.get("enterpriseToRevenue")))
+        w2b.metric("EV / EBITDA", fmt_num(info.get("enterpriseToEbitda")))
+        w3b.metric("Market Cap", fmt_num(info.get("marketCap"), suffix=" $", compact=True))
+        w4b.metric("Forward P/E", fmt_num(info.get("forwardPE")))
+
+        st.divider()
+
+        # ==============================================================================
+        # SECTION 3: FINANCIAL HEALTH (SOLVENCY)
+        # ==============================================================================
+        st.markdown("#### 🏦 Financial Health")
+        f1, f2, f3, f4 = st.columns(4)
+        f1.metric("Total Assets / Share", fmt_num(assets_per_share))
+        f2.metric("Debt / Assets", fmt_num(debt_to_assets))
+        f3.metric("Debt / Total Capital", fmt_num(debt_to_capital))
+        f4.metric("Revenue / Employee", fmt_num(rev_per_empl))
+        
+        st.divider()
+
+        # ==============================================================================
+        # SECTION 4: PROFITABILITY
+        # ==============================================================================
+        st.markdown("#### 📈 Profitability")
+        r1, r2, r3, r4 = st.columns(4)
+        r1.metric("Gross Margin", fmt_pct(info.get("grossMargins")))
+        r2.metric("Operating Margin", fmt_pct(info.get("operatingMargins")))
+        r3.metric("Profit Margin", fmt_pct(info.get("profitMargins")))
+        r4.metric("Beta (Volatility)", fmt_num(info.get("beta")))
 
     with tab3:
-        st.header("Generate AI Report")
+        st.header("🤖 AI Report (Perplexity Sonar)")
+        st.caption("This analysis combines fundamental data with the latest web news (Live Search).")
         
-        # Safety Check: Do we have data?
+        # --- KONFIGURACJA API (BEZPOŚREDNIO W KODZIE) ---
+        # Wklej tutaj swój klucz Perplexity zaczynający się od 'pplx-...'
+        PERPLEXITY_API_KEY = "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"  
+        
+        # Sprawdzenie czy mamy dane finansowe
         if not sankey_vals:
-            st.warning("Insufficient financial data to generate report.")
+            st.warning("Insufficient financial data to generate the report.")
         else:
+            # Generowanie Promptu (teraz ukryte dla użytkownika)
             prompt = ReportGenerator.generate_ai_prompt(ticker_input, sankey_vals, data_dict['info'])
-            st.code(prompt, language="markdown")
             
-            st.info("Below is a simulation of the AI response:")
+            # Przycisk Generowania
+            generate_btn = st.button("🚀 Generate Live Report", type="primary")
             
-            # --- SAFETY CHECK ---
-            rev = sankey_vals.get('Revenue', 1) # Default 1 to avoid div by zero
-            gp = sankey_vals.get('Gross Profit', 0)
-            net = sankey_vals.get('Net Income', 0)
+            # Session State
+            if "ai_report_content" not in st.session_state:
+                st.session_state["ai_report_content"] = None
             
-            margin = (gp / rev) * 100 if rev else 0
-            # --------------------
+            # --- LOGIKA PRZYCISKU ---
+            if generate_btn:
+                # Proste sprawdzenie czy klucz nie jest domyślny
+                if "TUTAJ" in PERPLEXITY_API_KEY:
+                    st.error("⚠️ Error: Developer did not configure the API Key in the source code.")
+                else:
+                    with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
+                        # Wywołanie API (zwraca teraz krotkę: tekst, lista_cytowań)
+                        analysis_text, citations = ReportGenerator.get_ai_analysis(PERPLEXITY_API_KEY, prompt)
+                        
+                        # Zapisanie wyniku do sesji jako słownik
+                        st.session_state["ai_report_data"] = {
+                            "text": analysis_text,
+                            "citations": citations
+                        }
             
-            mock_analysis = f"""
-            **Company Analysis: {ticker_input}**
-            
-            1. **Operational Efficiency**: The company shows a gross margin of {margin:.1f}%.
-            
-            2. **What-If Scenario**: Assuming a revenue change of {rev_change}% and cost change of {cost_change}%,
-            estimated Net Income would be ${net:,.0f}.
-            
-            3. **Risks**: PEG Ratio at {info.get('pegRatio', 'N/A')}.
-            """
-            st.markdown(mock_analysis)
-            
-            # PDF Export
-            metrics_for_pdf = {
-                "P/E": str(info.get("trailingPE", "N/A")),
-                "Revenue": f"${rev:,.0f}",
-                "Net Income": f"${net:,.0f}"
-            }
-            
-            if st.button("Generate PDF Report"):
-                pdf_bytes = ReportGenerator.create_pdf(ticker_input, mock_analysis.replace("*", ""), metrics_for_pdf)
+            # --- WYŚWIETLANIE WYNIKU (JEŚLI ISTNIEJE W SESJI) ---
+            if "ai_report_data" in st.session_state and st.session_state["ai_report_data"]:
+                report_data = st.session_state["ai_report_data"]
+                
+                st.markdown("### 📝 Analysis Result")
+                st.markdown(report_data["text"])
+                
+                # Wyświetlenie listy źródeł (jeśli są dostępne)
+                if report_data["citations"]:
+                    st.divider()
+                    st.markdown("#### 📚 Sources / Citations")
+                    for i, link in enumerate(report_data["citations"], 1):
+                        st.markdown(f"**[{i}]** [{link}]({link})")
+                
+                st.divider()
+                
+                # Przygotowanie danych do PDF
+                rev = sankey_vals.get('Revenue', 1)
+                net = sankey_vals.get('Net Income', 0)
+                metrics_for_pdf = {
+                    "Ticker": ticker_input,
+                    "P/E Ratio": str(info.get("trailingPE", "N/A")),
+                    "Revenue": f"${rev:,.0f}",
+                    "Net Income": f"${net:,.0f}"
+                }
+                
+                # Generowanie pliku PDF (przekazujemy też cytowania)
+                pdf_bytes = ReportGenerator.create_pdf(
+                    ticker_input, 
+                    report_data["text"], # Nie usuwamy gwiazdek markdown, bo nowa klasa PDF je obsłuży
+                    metrics_for_pdf,
+                    citations=report_data["citations"]
+                )
+                
                 st.download_button(
-                    label="📥 Download PDF",
+                    label="📄 Download Professional PDF Report",
                     data=pdf_bytes,
-                    file_name=f"{ticker_input}_report.pdf",
+                    file_name=f"{ticker_input}_Perplexity_Report.pdf",
                     mime="application/pdf"
                 )
-
-
+                            
     with tab4:
         st.header("Additional Data")
         col_a, col_b = st.columns(2)
