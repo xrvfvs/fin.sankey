@@ -1164,32 +1164,52 @@ def main():
     with tab3:
         st.header("🤖 AI Report (Perplexity Sonar)")
         st.caption("This analysis combines fundamental data with the latest web news (Live Search).")
-        
-        # --- KONFIGURACJA API (BEZPOŚREDNIO W KODZIE) ---
-        # Wklej tutaj swój klucz Perplexity zaczynający się od 'pplx-...'
-        PERPLEXITY_API_KEY = "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"  
-        
+
+        # --- KONFIGURACJA API (BEZPIECZNE POBIERANIE) ---
+        # Priorytet: 1) Streamlit secrets, 2) Zmienna środowiskowa, 3) None
+        PERPLEXITY_API_KEY = None
+
+        # Próba pobrania z st.secrets (Streamlit Cloud)
+        try:
+            PERPLEXITY_API_KEY = st.secrets.get("PERPLEXITY_API_KEY")
+        except Exception:
+            pass
+
+        # Fallback: zmienna środowiskowa (lokalne uruchomienie)
+        if not PERPLEXITY_API_KEY:
+            PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+
+        # Sprawdzenie czy klucz jest dostępny
+        api_key_missing = not PERPLEXITY_API_KEY or len(PERPLEXITY_API_KEY) < 10
+
+        if api_key_missing:
+            st.warning(
+                "⚠️ **Perplexity API key not configured.**\n\n"
+                "To enable AI reports, set your API key:\n"
+                "- **Streamlit Cloud:** Add `PERPLEXITY_API_KEY` to `.streamlit/secrets.toml`\n"
+                "- **Local:** Set environment variable `PERPLEXITY_API_KEY`\n\n"
+                "Get your key at: https://www.perplexity.ai/settings/api"
+            )
+
         # Sprawdzenie czy mamy dane finansowe
         if not sankey_vals:
             st.warning("Insufficient financial data to generate the report.")
+        elif api_key_missing:
+            st.info("Configure your API key above to generate AI reports.")
         else:
             # Generowanie Promptu (teraz ukryte dla użytkownika)
             prompt = ReportGenerator.generate_ai_prompt(ticker_input, sankey_vals, data_dict['info'])
-            
+
             # Przycisk Generowania
             generate_btn = st.button("🚀 Generate Live Report", type="primary")
-            
+
             # Session State
             if "ai_report_content" not in st.session_state:
                 st.session_state["ai_report_content"] = None
-            
+
             # --- LOGIKA PRZYCISKU ---
             if generate_btn:
-                # Proste sprawdzenie czy klucz nie jest domyślny
-                if "TUTAJ" in PERPLEXITY_API_KEY:
-                    st.error("⚠️ Error: Developer did not configure the API Key in the source code.")
-                else:
-                    with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
+                with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
                         # Wywołanie API (zwraca teraz krotkę: tekst, lista_cytowań)
                         analysis_text, citations = ReportGenerator.get_ai_analysis(PERPLEXITY_API_KEY, prompt)
                         
