@@ -1320,6 +1320,9 @@ def main():
         # Calculations for custom metrics
         total_assets = None
         total_equity = None
+        total_debt_bs = None
+        cash = None
+
         if bs is not None and not bs.empty:
             # Try finding Total Assets
             for k in ["Total Assets", "Total assets"]:
@@ -1327,11 +1330,73 @@ def main():
                     total_assets = float(bs.loc[k].iloc[0])
                     break
             # Try finding Total Equity
-            for k in ["Total Stockholder Equity", "Total Equity", "Stockholders Equity"]:
+            for k in ["Total Stockholder Equity", "Total Equity", "Stockholders Equity", "Stockholders' Equity"]:
                 if k in bs.index:
                     total_equity = float(bs.loc[k].iloc[0])
                     break
-        
+            # Try finding Total Debt from balance sheet
+            for k in ["Total Debt", "Long Term Debt", "Long Term Debt And Capital Lease Obligation"]:
+                if k in bs.index:
+                    total_debt_bs = float(bs.loc[k].iloc[0])
+                    break
+            # Try finding Cash
+            for k in ["Cash And Cash Equivalents", "Cash", "Cash Cash Equivalents And Short Term Investments"]:
+                if k in bs.index:
+                    cash = float(bs.loc[k].iloc[0])
+                    break
+
+        # --- ROIC Calculation ---
+        # ROIC = NOPAT / Invested Capital
+        # NOPAT = Operating Income × (1 - Tax Rate)
+        # Invested Capital = Total Equity + Total Debt - Cash
+        roic = None
+        income_stmt = data_dict.get("income_stmt")
+
+        if income_stmt is not None and not income_stmt.empty:
+            # Get Operating Income
+            operating_income = None
+            for k in ["Operating Income", "EBIT"]:
+                if k in income_stmt.index:
+                    operating_income = float(income_stmt.loc[k].iloc[0])
+                    break
+
+            # Calculate effective tax rate
+            tax_rate = None
+            pretax_income = None
+            tax_provision = None
+
+            for k in ["Pretax Income", "Income Before Tax"]:
+                if k in income_stmt.index:
+                    pretax_income = float(income_stmt.loc[k].iloc[0])
+                    break
+
+            for k in ["Tax Provision", "Income Tax Expense"]:
+                if k in income_stmt.index:
+                    tax_provision = float(income_stmt.loc[k].iloc[0])
+                    break
+
+            if pretax_income and pretax_income != 0 and tax_provision is not None:
+                tax_rate = tax_provision / pretax_income
+                # Clamp tax rate to reasonable range (0-50%)
+                tax_rate = max(0, min(0.5, tax_rate))
+            else:
+                tax_rate = 0.21  # Default US corporate tax rate
+
+            # Calculate NOPAT
+            if operating_income is not None:
+                nopat = operating_income * (1 - tax_rate)
+
+                # Calculate Invested Capital
+                # Use debt from info if balance sheet debt not available
+                total_debt_val = total_debt_bs if total_debt_bs else info.get("totalDebt", 0) or 0
+                equity_val = total_equity or 0
+                cash_val = cash or 0
+
+                invested_capital = equity_val + total_debt_val - cash_val
+
+                if invested_capital and invested_capital > 0:
+                    roic = nopat / invested_capital
+
         shares = info.get("sharesOutstanding")
         debt = info.get("totalDebt")
         rev = info.get("totalRevenue")
@@ -1362,7 +1427,7 @@ def main():
         k1.metric("Revenue per Share", fmt_num(info.get("revenuePerShare")))
         k2.metric("EPS (Trailing)", fmt_num(info.get("trailingEps")))
         k3.metric("ROE", fmt_pct(info.get("returnOnEquity")))
-        k4.metric("ROIC", "N/A", help="Requires manual calculation (NOPAT/InvestedCapital)") 
+        k4.metric("ROIC", fmt_pct(roic), help="Return on Invested Capital = NOPAT / (Equity + Debt - Cash)") 
 
         k1b, k2b, k3b, k4b = st.columns(4)
         k1b.metric("Debt / Equity", fmt_num(info.get("debtToEquity")))
