@@ -4,3 +4,4 @@ plotly
 pandas
 fpdf2
 openai
+openpyxl

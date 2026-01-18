@@ -14,7 +14,50 @@ from fpdf import FPDF
 import datetime
 import os
 import urllib.request
+import time
+from functools import wraps
+from io import BytesIO
 
+
+# --- RETRY DECORATOR FOR RATE LIMITING ---
+def retry_on_rate_limit(max_retries=3, base_delay=2):
+    """Decorator that retries function on rate limit errors with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "too many requests" in error_msg or "rate" in error_msg:
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)
+                            time.sleep(delay)
+                            continue
+                    raise e
+            return None
+        return wrapper
+    return decorator
+
+
+# --- EXCEL EXPORT HELPER ---
+def convert_df_to_excel(df, sheet_name="Data"):
+    """Convert DataFrame to Excel bytes for download."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=sheet_name)
+    return output.getvalue()
+
+
+def convert_multiple_df_to_excel(dfs_dict):
+    """Convert multiple DataFrames to a single Excel file with multiple sheets."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        for sheet_name, df in dfs_dict.items():
+            if df is not None and not df.empty:
+                df.to_excel(writer, sheet_name=sheet_name[:31])  # Excel max sheet name = 31 chars
+    return output.getvalue()
 
 
 # --- PAGE CONFIGURATION ---
@@ -98,6 +141,7 @@ class DataManager:
 
     @staticmethod
     @st.cache_data(ttl=3600)
+    @retry_on_rate_limit(max_retries=3, base_delay=2)
     def get_financials(ticker_symbol):
         try:
             ticker = yf.Ticker(ticker_symbol)
@@ -1585,6 +1629,65 @@ def main():
                 st.dataframe(rec_df.tail(10), use_container_width=True)
             else:
                 st.write("No analyst recommendations available.")
+
+        # --- EXPORT DATA SECTION ---
+        st.divider()
+        st.subheader("📥 Export Financial Data")
+        st.write("Download raw financial data for further analysis in Excel.")
+
+        export_col1, export_col2, export_col3 = st.columns(3)
+
+        income_stmt = data_dict['income_stmt']
+        balance_sheet = data_dict['balance_sheet']
+
+        with export_col1:
+            if income_stmt is not None and not income_stmt.empty:
+                income_excel = convert_df_to_excel(income_stmt.T, "Income Statement")
+                st.download_button(
+                    label="📊 Income Statement",
+                    data=income_excel,
+                    file_name=f"{ticker_input}_income_statement.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download full income statement data"
+                )
+            else:
+                st.button("📊 Income Statement", disabled=True, help="No data available")
+
+        with export_col2:
+            if balance_sheet is not None and not balance_sheet.empty:
+                balance_excel = convert_df_to_excel(balance_sheet.T, "Balance Sheet")
+                st.download_button(
+                    label="📋 Balance Sheet",
+                    data=balance_excel,
+                    file_name=f"{ticker_input}_balance_sheet.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download full balance sheet data"
+                )
+            else:
+                st.button("📋 Balance Sheet", disabled=True, help="No data available")
+
+        with export_col3:
+            # Export all data in one file with multiple sheets
+            all_data = {
+                "Income Statement": income_stmt.T if income_stmt is not None and not income_stmt.empty else pd.DataFrame(),
+                "Balance Sheet": balance_sheet.T if balance_sheet is not None and not balance_sheet.empty else pd.DataFrame(),
+                "Insider Trading": insider_df if not insider_df.empty else pd.DataFrame(),
+                "Recommendations": rec_df if not rec_df.empty else pd.DataFrame()
+            }
+            # Filter out empty dataframes
+            all_data = {k: v for k, v in all_data.items() if not v.empty}
+
+            if all_data:
+                all_excel = convert_multiple_df_to_excel(all_data)
+                st.download_button(
+                    label="📦 All Data (Multi-sheet)",
+                    data=all_excel,
+                    file_name=f"{ticker_input}_all_financial_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download all available data in one Excel file"
+                )
+            else:
+                st.button("📦 All Data", disabled=True, help="No data available")
 
 if __name__ == "__main__":
      main()
