@@ -82,6 +82,18 @@ class SupabaseAuth:
         return cls._client
 
     @classmethod
+    def restore_session(cls):
+        """Restore session from session_state if available."""
+        client = cls.get_client()
+        if client and "supabase_session" in st.session_state:
+            session = st.session_state["supabase_session"]
+            if session:
+                try:
+                    client.auth.set_session(session.access_token, session.refresh_token)
+                except Exception:
+                    pass
+
+    @classmethod
     def is_configured(cls) -> bool:
         """Check if Supabase is properly configured."""
         try:
@@ -118,6 +130,8 @@ class SupabaseAuth:
                 "password": password
             })
             if response.user:
+                # Store session in session_state for persistence
+                st.session_state["supabase_session"] = response.session
                 return {"success": True, "user": response.user, "session": response.session}
             return {"error": "Login failed"}
         except Exception as e:
@@ -134,6 +148,7 @@ class SupabaseAuth:
             return False
         try:
             client.auth.sign_out()
+            st.session_state.pop("supabase_session", None)
             return True
         except Exception:
             return False
@@ -164,20 +179,21 @@ class SupabaseAuth:
             return []
 
     @classmethod
-    def add_to_watchlist(cls, user_id: str, ticker: str, company_name: str = None) -> bool:
+    def add_to_watchlist(cls, user_id: str, ticker: str, company_name: str = None) -> dict:
         """Add ticker to watchlist."""
         client = cls.get_client()
         if not client:
-            return False
+            return {"success": False, "error": "Client not configured"}
         try:
-            client.table("watchlist").insert({
+            cls.restore_session()  # Ensure session is active
+            response = client.table("watchlist").insert({
                 "user_id": user_id,
                 "ticker": ticker,
                 "company_name": company_name
             }).execute()
-            return True
-        except Exception:
-            return False
+            return {"success": True, "data": response.data}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     @classmethod
     def remove_from_watchlist(cls, user_id: str, ticker: str) -> bool:
@@ -1393,20 +1409,23 @@ def main():
             if "auth_mode" not in st.session_state:
                 st.session_state["auth_mode"] = "login"  # or "register"
 
+            # Restore Supabase session on each run
+            SupabaseAuth.restore_session()
+
             current_user = st.session_state.get("user")
 
             if current_user:
                 # User is logged in
                 st.success(f"Welcome, {current_user.email}!")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Logout", use_container_width=True):
-                        SupabaseAuth.sign_out()
-                        st.session_state["user"] = None
-                        st.rerun()
-                with col2:
-                    if st.button("My Data", use_container_width=True):
-                        st.session_state["show_user_panel"] = True
+                if st.button("Logout", use_container_width=True):
+                    SupabaseAuth.sign_out()
+                    st.session_state["user"] = None
+                    st.rerun()
+
+                # Show user stats
+                watchlist = SupabaseAuth.get_watchlist(current_user.id)
+                saved = SupabaseAuth.get_saved_analyses(current_user.id)
+                st.caption(f"Watchlist: {len(watchlist)} | Saved analyses: {len(saved)}")
                 st.markdown("---")
             else:
                 # Login/Register forms
@@ -1504,11 +1523,16 @@ def main():
                     if SupabaseAuth.remove_from_watchlist(current_user.id, ticker_input):
                         st.success(f"Removed {ticker_input} from watchlist!")
                         st.rerun()
+                    else:
+                        st.error("Failed to remove from watchlist")
             else:
                 if st.button("Add to Watchlist", key="add_wl"):
-                    if SupabaseAuth.add_to_watchlist(current_user.id, ticker_input, company_name):
+                    result = SupabaseAuth.add_to_watchlist(current_user.id, ticker_input, company_name)
+                    if result.get("success"):
                         st.success(f"Added {ticker_input} to watchlist!")
                         st.rerun()
+                    else:
+                        st.error(f"Failed: {result.get('error', 'Unknown error')}")
 
         # What-If for Main
         st.caption(f"Simulation: {ticker_input}")
