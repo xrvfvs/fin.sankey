@@ -45,4 +45,5 @@ DejaVuSans.ttf
 
 # Generated reports cache
 reports/
+.report_cache/
 *.pdf

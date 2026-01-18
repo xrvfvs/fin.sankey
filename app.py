@@ -15,6 +15,7 @@ import datetime
 import os
 import urllib.request
 import time
+import json
 from functools import wraps
 from io import BytesIO
 
@@ -595,7 +596,60 @@ class PDFReport(FPDF):
 
 class ReportGenerator:
     """Generowanie raportów PDF i analizy AI (Perplexity API) z cytowaniami."""
-    
+
+    CACHE_DIR = ".report_cache"
+    CACHE_TTL_HOURS = 24  # Reports are valid for 24 hours
+
+    @staticmethod
+    def _get_cache_path(ticker):
+        """Returns the cache file path for a given ticker."""
+        os.makedirs(ReportGenerator.CACHE_DIR, exist_ok=True)
+        return os.path.join(ReportGenerator.CACHE_DIR, f"{ticker}_report.json")
+
+    @staticmethod
+    def get_cached_report(ticker):
+        """
+        Returns cached report if it exists and is not expired.
+        Returns tuple: (report_data, cache_age_hours) or (None, None)
+        """
+        cache_path = ReportGenerator._get_cache_path(ticker)
+
+        if not os.path.exists(cache_path):
+            return None, None
+
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+
+            # Check cache age
+            cached_time = datetime.datetime.fromisoformat(cache_data.get('timestamp', '2000-01-01'))
+            age = datetime.datetime.now() - cached_time
+            age_hours = age.total_seconds() / 3600
+
+            if age_hours > ReportGenerator.CACHE_TTL_HOURS:
+                return None, None  # Cache expired
+
+            return cache_data.get('report'), age_hours
+        except Exception:
+            return None, None
+
+    @staticmethod
+    def save_report_to_cache(ticker, report_data):
+        """Saves report data to cache file."""
+        cache_path = ReportGenerator._get_cache_path(ticker)
+
+        try:
+            cache_data = {
+                'timestamp': datetime.datetime.now().isoformat(),
+                'ticker': ticker,
+                'report': report_data
+            }
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception:
+            return False
+
     @staticmethod
     def ensure_font_exists():
         """Pobiera czcionkę DejaVuSans.ttf jeśli nie istnieje."""
@@ -1552,24 +1606,49 @@ def main():
             # Generowanie Promptu (teraz ukryte dla użytkownika)
             prompt = ReportGenerator.generate_ai_prompt(ticker_input, sankey_vals, data_dict['info'])
 
-            # Przycisk Generowania
-            generate_btn = st.button("🚀 Generate Live Report", type="primary")
+            # --- SPRAWDZENIE CACHE ---
+            cached_report, cache_age = ReportGenerator.get_cached_report(ticker_input)
+
+            # Wyświetlenie informacji o cache
+            if cached_report:
+                cache_hours = int(cache_age)
+                cache_minutes = int((cache_age - cache_hours) * 60)
+                st.info(f"💾 Cached report available (generated {cache_hours}h {cache_minutes}m ago)")
+
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    use_cache_btn = st.button("📂 Load Cached Report", type="secondary")
+                with btn_col2:
+                    generate_btn = st.button("🚀 Generate New Report", type="primary")
+            else:
+                generate_btn = st.button("🚀 Generate Live Report", type="primary")
+                use_cache_btn = False
 
             # Session State
             if "ai_report_content" not in st.session_state:
                 st.session_state["ai_report_content"] = None
 
-            # --- LOGIKA PRZYCISKU ---
+            # --- LOGIKA CACHE ---
+            if use_cache_btn and cached_report:
+                st.session_state["ai_report_data"] = cached_report
+                st.toast("✅ Loaded report from cache!", icon="💾")
+
+            # --- LOGIKA PRZYCISKU GENEROWANIA ---
             if generate_btn:
                 with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
                         # Wywołanie API (zwraca teraz krotkę: tekst, lista_cytowań)
                         analysis_text, citations = ReportGenerator.get_ai_analysis(PERPLEXITY_API_KEY, prompt)
-                        
+
                         # Zapisanie wyniku do sesji jako słownik
-                        st.session_state["ai_report_data"] = {
+                        report_data = {
                             "text": analysis_text,
                             "citations": citations
                         }
+                        st.session_state["ai_report_data"] = report_data
+
+                        # Zapisz do cache
+                        if ReportGenerator.save_report_to_cache(ticker_input, report_data):
+                            st.toast("✅ Report saved to cache!", icon="💾")
             
             # --- WYŚWIETLANIE WYNIKU (JEŚLI ISTNIEJE W SESJI) ---
             if "ai_report_data" in st.session_state and st.session_state["ai_report_data"]:
@@ -1626,6 +1705,11 @@ def main():
             st.subheader("Analyst Sentiment")
             rec_df = data_dict['recommendations']
             if not rec_df.empty:
+                # Display sentiment chart
+                sentiment_fig = Visualizer.plot_sentiment(rec_df)
+                if sentiment_fig:
+                    st.plotly_chart(sentiment_fig, use_container_width=True)
+                # Display recent recommendations table
                 st.dataframe(rec_df.tail(10), use_container_width=True)
             else:
                 st.write("No analyst recommendations available.")
