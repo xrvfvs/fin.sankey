@@ -363,6 +363,22 @@ class Visualizer:
         except: return None
 
     @staticmethod
+    def _format_financial_value(val):
+        """Format value with B/M/K suffix for financial display."""
+        if val is None:
+            return "N/A"
+        abs_val = abs(val)
+        sign = "-" if val < 0 else ""
+        if abs_val >= 1e9:
+            return f"{sign}${abs_val/1e9:.1f}B"
+        elif abs_val >= 1e6:
+            return f"{sign}${abs_val/1e6:.0f}M"
+        elif abs_val >= 1e3:
+            return f"{sign}${abs_val/1e3:.0f}K"
+        else:
+            return f"{sign}${abs_val:,.0f}"
+
+    @staticmethod
     def plot_historical_trend(income_stmt, metrics=None):
         """
         Creates a line chart showing historical trends of key financial metrics.
@@ -388,10 +404,14 @@ class Visualizer:
         # Colors for different metrics
         colors = ["#4285F4", "#34A853", "#FBBC05", "#EA4335"]
 
+        all_values = []  # Collect all values to determine scale
+
         for i, (metric_key, metric_name) in enumerate(metrics):
             # Try to find the metric in the income statement
             if metric_key in income_stmt.index:
                 values = income_stmt.loc[metric_key].values
+                all_values.extend(values)
+
                 # Format dates for x-axis (reverse to show oldest first)
                 dates = []
                 for col in income_stmt.columns:
@@ -405,6 +425,9 @@ class Visualizer:
                 dates_rev = dates[::-1]
                 values_rev = values[::-1]
 
+                # Format hover values with B/M suffix
+                hover_texts = [Visualizer._format_financial_value(v) for v in values_rev]
+
                 fig.add_trace(go.Scatter(
                     x=dates_rev,
                     y=values_rev,
@@ -412,13 +435,26 @@ class Visualizer:
                     mode='lines+markers',
                     line=dict(color=colors[i % len(colors)], width=2),
                     marker=dict(size=8),
-                    hovertemplate=f'{metric_name}: $%{{y:,.0f}}<extra></extra>'
+                    hovertemplate=f'{metric_name}: %{{text}}<extra></extra>',
+                    text=hover_texts
                 ))
+
+        # Determine scale for y-axis labels
+        if all_values:
+            max_abs = max(abs(v) for v in all_values if v is not None)
+            if max_abs >= 1e9:
+                divisor, suffix = 1e9, "B"
+            elif max_abs >= 1e6:
+                divisor, suffix = 1e6, "M"
+            else:
+                divisor, suffix = 1, ""
+        else:
+            divisor, suffix = 1, ""
 
         fig.update_layout(
             title="<b>Historical Financial Trends</b>",
             xaxis_title="Period",
-            yaxis_title="Value ($)",
+            yaxis_title=f"Value (${suffix})",
             height=400,
             hovermode='x unified',
             legend=dict(
@@ -428,11 +464,19 @@ class Visualizer:
                 xanchor="right",
                 x=1
             ),
-            margin=dict(l=20, r=20, t=60, b=20)
+            margin=dict(l=60, r=20, t=60, b=20)
         )
 
-        # Format y-axis with abbreviations
-        fig.update_yaxes(tickformat=".2s")
+        # Scale y-axis values for cleaner display
+        if divisor > 1:
+            fig.update_yaxes(
+                tickformat=".1f",
+                ticksuffix=suffix,
+                tickprefix="$"
+            )
+            # Update trace y-values to be in scaled units
+            for trace in fig.data:
+                trace.y = [v / divisor if v is not None else None for v in trace.y]
 
         return fig
 
@@ -1217,24 +1261,29 @@ def main():
             yoy_cols = st.columns(len(yoy_metrics))
             for i, (metric_name, (current_val, yoy_change)) in enumerate(yoy_metrics.items()):
                 with yoy_cols[i]:
-                    # Format current value
-                    if current_val >= 1e9:
-                        formatted_val = f"${current_val/1e9:.1f}B"
-                    elif current_val >= 1e6:
-                        formatted_val = f"${current_val/1e6:.1f}M"
+                    # Format current value (handle negative values properly)
+                    abs_val = abs(current_val)
+                    sign = "-" if current_val < 0 else ""
+
+                    if abs_val >= 1e9:
+                        formatted_val = f"{sign}${abs_val/1e9:.1f}B"
+                    elif abs_val >= 1e6:
+                        formatted_val = f"{sign}${abs_val/1e6:.0f}M"
+                    elif abs_val >= 1e3:
+                        formatted_val = f"{sign}${abs_val/1e3:.0f}K"
                     else:
-                        formatted_val = f"${current_val:,.0f}"
+                        formatted_val = f"{sign}${abs_val:,.0f}"
 
                     # Format YoY change with color indicator
                     if yoy_change is not None:
                         delta_str = f"{yoy_change:+.1f}%"
                     else:
-                        delta_str = "N/A"
+                        delta_str = None
 
                     st.metric(
                         label=metric_name,
                         value=formatted_val,
-                        delta=delta_str if yoy_change is not None else None
+                        delta=delta_str
                     )
 
     with tab2:
