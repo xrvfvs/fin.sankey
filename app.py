@@ -263,6 +263,78 @@ class SupabaseAuth:
         except Exception:
             return None
 
+    # --- GLOBAL REPORTS CACHE METHODS ---
+    GLOBAL_CACHE_TTL_DAYS = 7  # Reports valid for 7 days
+
+    @classmethod
+    def get_global_cached_report(cls, ticker: str) -> dict:
+        """Get report from global cache if exists and not expired."""
+        client = cls.get_client()
+        if not client:
+            return None
+        try:
+            response = client.table("global_reports_cache").select("*").eq("ticker", ticker).single().execute()
+            if response.data:
+                # Check if cache is still valid
+                created_at = datetime.datetime.fromisoformat(response.data['created_at'].replace('Z', '+00:00'))
+                age_days = (datetime.datetime.now(datetime.timezone.utc) - created_at).days
+                if age_days <= cls.GLOBAL_CACHE_TTL_DAYS:
+                    return {
+                        "text": response.data.get("report_text"),
+                        "citations": response.data.get("citations"),
+                        "age_days": age_days,
+                        "from_cache": "global"
+                    }
+            return None
+        except Exception:
+            return None
+
+    @classmethod
+    def save_to_global_cache(cls, ticker: str, report_text: str, citations: list = None, financial_snapshot: dict = None) -> bool:
+        """Save or update report in global cache."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            cls.restore_session()  # Ensure authenticated
+            # Upsert - insert or update if exists
+            client.table("global_reports_cache").upsert({
+                "ticker": ticker,
+                "report_text": report_text,
+                "citations": citations,
+                "financial_snapshot": financial_snapshot,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }, on_conflict="ticker").execute()
+            return True
+        except Exception as e:
+            return False
+
+    @classmethod
+    def get_best_cached_report(cls, ticker: str, user_id: str = None) -> dict:
+        """
+        Get best available cached report. Priority:
+        1. Global cache (if < 7 days old)
+        2. User's saved analysis (if logged in)
+        3. None (need to generate new)
+        """
+        # Try global cache first
+        global_report = cls.get_global_cached_report(ticker)
+        if global_report:
+            return global_report
+
+        # Try user's saved analyses
+        if user_id:
+            saved = cls.get_saved_analyses(user_id)
+            for analysis in saved:
+                if analysis.get('ticker') == ticker:
+                    return {
+                        "text": analysis.get("report_text"),
+                        "citations": analysis.get("citations"),
+                        "from_cache": "user_saved"
+                    }
+
+        return None
+
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -1928,14 +2000,44 @@ def main():
             # Generowanie Promptu (teraz ukryte dla użytkownika)
             prompt = ReportGenerator.generate_ai_prompt(ticker_input, sankey_vals, data_dict['info'])
 
-            # --- SPRAWDZENIE CACHE ---
-            cached_report, cache_age = ReportGenerator.get_cached_report(ticker_input)
+            # --- SPRAWDZENIE CACHE (PRIORYTET: Global Supabase -> User Saved -> Local File) ---
+            current_user = st.session_state.get("user")
+            user_id = current_user.id if current_user else None
+
+            # 1. Check Supabase caches (global + user saved)
+            supabase_cached = None
+            if SupabaseAuth.is_configured():
+                supabase_cached = SupabaseAuth.get_best_cached_report(ticker_input, user_id)
+
+            # 2. Check local file cache as fallback
+            local_cached, local_cache_age = ReportGenerator.get_cached_report(ticker_input)
+
+            # Determine best cache source
+            cached_report = None
+            cache_source = None
+
+            if supabase_cached:
+                cached_report = supabase_cached
+                cache_source = supabase_cached.get("from_cache", "global")
+                if cache_source == "global":
+                    age_info = f"{supabase_cached.get('age_days', 0)} days old"
+                else:
+                    age_info = "from your saved analyses"
+            elif local_cached:
+                cached_report = local_cached
+                cache_source = "local"
+                cache_hours = int(local_cache_age)
+                cache_minutes = int((local_cache_age - cache_hours) * 60)
+                age_info = f"{cache_hours}h {cache_minutes}m old"
 
             # Wyświetlenie informacji o cache
             if cached_report:
-                cache_hours = int(cache_age)
-                cache_minutes = int((cache_age - cache_hours) * 60)
-                st.info(f"💾 Cached report available (generated {cache_hours}h {cache_minutes}m ago)")
+                if cache_source == "global":
+                    st.info(f"🌐 Global cached report available ({age_info}) - saves API costs!")
+                elif cache_source == "user_saved":
+                    st.info(f"👤 Found in your saved analyses")
+                else:
+                    st.info(f"💾 Local cached report available ({age_info})")
 
                 btn_col1, btn_col2 = st.columns(2)
                 with btn_col1:
@@ -1953,7 +2055,7 @@ def main():
             # --- LOGIKA CACHE ---
             if use_cache_btn and cached_report:
                 st.session_state["ai_report_data"] = cached_report
-                st.toast("✅ Loaded report from cache!", icon="💾")
+                st.toast(f"✅ Loaded from {cache_source} cache!", icon="💾")
 
             # --- LOGIKA PRZYCISKU GENEROWANIA ---
             if generate_btn:
@@ -1968,9 +2070,20 @@ def main():
                         }
                         st.session_state["ai_report_data"] = report_data
 
-                        # Zapisz do cache
-                        if ReportGenerator.save_report_to_cache(ticker_input, report_data):
-                            st.toast("✅ Report saved to cache!", icon="💾")
+                        # Zapisz do LOCAL cache
+                        ReportGenerator.save_report_to_cache(ticker_input, report_data)
+
+                        # Zapisz do GLOBAL Supabase cache (jeśli zalogowany)
+                        if current_user and SupabaseAuth.is_configured():
+                            financial_snapshot = {
+                                "revenue": sankey_vals.get('Revenue', 0),
+                                "net_income": sankey_vals.get('Net Income', 0),
+                                "pe_ratio": info.get("trailingPE")
+                            }
+                            if SupabaseAuth.save_to_global_cache(ticker_input, analysis_text, citations, financial_snapshot):
+                                st.toast("✅ Report saved to global cache!", icon="🌐")
+                            else:
+                                st.toast("✅ Report saved locally", icon="💾")
             
             # --- WYŚWIETLANIE WYNIKU (JEŚLI ISTNIEJE W SESJI) ---
             if "ai_report_data" in st.session_state and st.session_state["ai_report_data"]:
