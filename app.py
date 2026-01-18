@@ -440,6 +440,7 @@ class Visualizer:
     def calculate_yoy_metrics(income_stmt):
         """
         Calculates Year-over-Year changes for key metrics.
+        Compares most recent period with the previous period (index 0 vs index 1).
 
         Returns dict with metric name -> (current_value, yoy_change_pct)
         """
@@ -460,14 +461,11 @@ class Visualizer:
         for metric_key, metric_name in metrics_to_calc:
             if metric_key in income_stmt.index:
                 current = income_stmt.loc[metric_key].iloc[0]
-                # Find year-ago value (typically 4 quarters back, or use last available)
-                if len(income_stmt.columns) >= 5:
-                    year_ago = income_stmt.loc[metric_key].iloc[4]
-                else:
-                    year_ago = income_stmt.loc[metric_key].iloc[-1]
+                # Compare with previous period (index 1 = previous year for annual data)
+                previous = income_stmt.loc[metric_key].iloc[1]
 
-                if year_ago and year_ago != 0:
-                    yoy_change = ((current - year_ago) / abs(year_ago)) * 100
+                if previous and previous != 0:
+                    yoy_change = ((current - previous) / abs(previous)) * 100
                 else:
                     yoy_change = None
 
