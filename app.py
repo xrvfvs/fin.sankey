@@ -18,6 +18,7 @@ import time
 import json
 from functools import wraps
 from io import BytesIO
+from supabase import create_client, Client
 
 
 # --- RETRY DECORATOR FOR RATE LIMITING ---
@@ -59,6 +60,192 @@ def convert_multiple_df_to_excel(dfs_dict):
             if df is not None and not df.empty:
                 df.to_excel(writer, sheet_name=sheet_name[:31])  # Excel max sheet name = 31 chars
     return output.getvalue()
+
+
+# --- SUPABASE AUTH HELPER ---
+class SupabaseAuth:
+    """Helper class for Supabase authentication and user data management."""
+
+    _client = None
+
+    @classmethod
+    def get_client(cls) -> Client:
+        """Get or create Supabase client singleton."""
+        if cls._client is None:
+            try:
+                url = st.secrets["supabase"]["url"]
+                key = st.secrets["supabase"]["anon_key"]
+                cls._client = create_client(url, key)
+            except Exception as e:
+                st.error(f"Supabase configuration error: {e}")
+                return None
+        return cls._client
+
+    @classmethod
+    def is_configured(cls) -> bool:
+        """Check if Supabase is properly configured."""
+        try:
+            return "supabase" in st.secrets and "url" in st.secrets["supabase"]
+        except Exception:
+            return False
+
+    @classmethod
+    def sign_up(cls, email: str, password: str) -> dict:
+        """Register a new user."""
+        client = cls.get_client()
+        if not client:
+            return {"error": "Supabase not configured"}
+        try:
+            response = client.auth.sign_up({
+                "email": email,
+                "password": password
+            })
+            if response.user:
+                return {"success": True, "user": response.user}
+            return {"error": "Registration failed"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @classmethod
+    def sign_in(cls, email: str, password: str) -> dict:
+        """Sign in an existing user."""
+        client = cls.get_client()
+        if not client:
+            return {"error": "Supabase not configured"}
+        try:
+            response = client.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+            if response.user:
+                return {"success": True, "user": response.user, "session": response.session}
+            return {"error": "Login failed"}
+        except Exception as e:
+            error_msg = str(e)
+            if "Invalid login credentials" in error_msg:
+                return {"error": "Invalid email or password"}
+            return {"error": error_msg}
+
+    @classmethod
+    def sign_out(cls) -> bool:
+        """Sign out the current user."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.auth.sign_out()
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def get_user(cls):
+        """Get the currently logged in user."""
+        client = cls.get_client()
+        if not client:
+            return None
+        try:
+            response = client.auth.get_user()
+            return response.user if response else None
+        except Exception:
+            return None
+
+    # --- WATCHLIST METHODS ---
+    @classmethod
+    def get_watchlist(cls, user_id: str) -> list:
+        """Get user's watchlist."""
+        client = cls.get_client()
+        if not client:
+            return []
+        try:
+            response = client.table("watchlist").select("*").eq("user_id", user_id).execute()
+            return response.data if response.data else []
+        except Exception:
+            return []
+
+    @classmethod
+    def add_to_watchlist(cls, user_id: str, ticker: str, company_name: str = None) -> bool:
+        """Add ticker to watchlist."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("watchlist").insert({
+                "user_id": user_id,
+                "ticker": ticker,
+                "company_name": company_name
+            }).execute()
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def remove_from_watchlist(cls, user_id: str, ticker: str) -> bool:
+        """Remove ticker from watchlist."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+            return True
+        except Exception:
+            return False
+
+    # --- SAVED ANALYSES METHODS ---
+    @classmethod
+    def save_analysis(cls, user_id: str, ticker: str, report_text: str, citations: list = None, financial_data: dict = None) -> bool:
+        """Save an AI analysis report."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("saved_analyses").insert({
+                "user_id": user_id,
+                "ticker": ticker,
+                "report_text": report_text,
+                "citations": citations,
+                "financial_data": financial_data
+            }).execute()
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def get_saved_analyses(cls, user_id: str) -> list:
+        """Get user's saved analyses."""
+        client = cls.get_client()
+        if not client:
+            return []
+        try:
+            response = client.table("saved_analyses").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            return response.data if response.data else []
+        except Exception:
+            return []
+
+    @classmethod
+    def delete_analysis(cls, user_id: str, analysis_id: str) -> bool:
+        """Delete a saved analysis."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("saved_analyses").delete().eq("user_id", user_id).eq("id", analysis_id).execute()
+            return True
+        except Exception:
+            return False
+
+    # --- USER PROFILE METHODS ---
+    @classmethod
+    def get_user_profile(cls, user_id: str) -> dict:
+        """Get user profile data."""
+        client = cls.get_client()
+        if not client:
+            return None
+        try:
+            response = client.table("user_profiles").select("*").eq("id", user_id).single().execute()
+            return response.data if response.data else None
+        except Exception:
+            return None
 
 
 # --- PAGE CONFIGURATION ---
