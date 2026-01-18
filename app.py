@@ -1166,59 +1166,28 @@ def main():
         st.caption("This analysis combines fundamental data with the latest web news (Live Search).")
 
         # --- KONFIGURACJA API (BEZPIECZNE POBIERANIE) ---
-        # Priorytet: 1) Streamlit secrets, 2) Zmienna środowiskowa, 3) Klucz wpisany przez użytkownika
+        # Priorytet: 1) Streamlit secrets, 2) Zmienna środowiskowa
         PERPLEXITY_API_KEY = None
-        key_source = None  # Informacja skąd pochodzi klucz
 
         # Próba pobrania z st.secrets (Streamlit Cloud / lokalny secrets.toml)
         try:
             if "PERPLEXITY_API_KEY" in st.secrets:
                 PERPLEXITY_API_KEY = st.secrets["PERPLEXITY_API_KEY"]
-                key_source = "secrets"
         except Exception:
             pass
 
         # Fallback: zmienna środowiskowa (lokalne uruchomienie)
         if not PERPLEXITY_API_KEY:
             PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-            if PERPLEXITY_API_KEY:
-                key_source = "env"
 
-        # Sprawdzenie czy klucz jest dostępny z konfiguracji
-        has_configured_key = PERPLEXITY_API_KEY and len(PERPLEXITY_API_KEY) >= 10
-
-        # --- UI: Pole do wpisania własnego klucza (jeśli brak skonfigurowanego) ---
-        if not has_configured_key:
-            st.info(
-                "**No API key configured.** Enter your own Perplexity API key below, "
-                "or ask the administrator to configure it.\n\n"
-                "Get your key at: https://www.perplexity.ai/settings/api"
-            )
-
-            # Pole do wpisania klucza (z ukrywaniem znaków)
-            user_api_key = st.text_input(
-                "Your Perplexity API Key:",
-                type="password",
-                placeholder="pplx-...",
-                help="Your key is not stored and is only used for this session."
-            )
-
-            # Jeśli użytkownik wpisał klucz, użyj go
-            if user_api_key and user_api_key.startswith("pplx-") and len(user_api_key) >= 10:
-                PERPLEXITY_API_KEY = user_api_key
-                key_source = "user_input"
-        else:
-            # Pokaż info że klucz jest skonfigurowany (bez ujawniania)
-            st.success("API key configured. Ready to generate reports.")
-
-        # Finalne sprawdzenie czy mamy działający klucz
+        # Sprawdzenie czy klucz jest dostępny
         api_key_ready = PERPLEXITY_API_KEY and len(PERPLEXITY_API_KEY) >= 10
 
         # Sprawdzenie czy mamy dane finansowe
         if not sankey_vals:
             st.warning("Insufficient financial data to generate the report.")
         elif not api_key_ready:
-            st.warning("Enter a valid API key above to generate AI reports.")
+            st.error("AI Reports are currently unavailable. Please contact the administrator.")
         else:
             # Generowanie Promptu (teraz ukryte dla użytkownika)
             prompt = ReportGenerator.generate_ai_prompt(ticker_input, sankey_vals, data_dict['info'])
