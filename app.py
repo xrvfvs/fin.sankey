@@ -840,32 +840,30 @@ class Visualizer:
 
 class PDFReport(FPDF):
     """Rozszerzona klasa FPDF do obsługi Markdown i Unicode."""
+
+    font_family = 'Helvetica'  # Default fallback font
+
     def header(self):
         try:
-            # Próbujemy ustawić DejaVu
-            self.set_font('DejaVu', '', 10)
-        except RuntimeError:
-            # Jeśli DejaVu nie istnieje, używamy Arial (standardowa, zawsze dostępna)
-            self.set_font('Arial', '', 10)
-            
+            self.set_font(PDFReport.font_family, '', 10)
+        except Exception:
+            self.set_font('Helvetica', '', 10)
         self.cell(0, 10, 'AI Report', 0, 1, 'R')
         self.ln(5)
 
     def chapter_title(self, label):
         try:
-            self.set_font('DejaVu', 'B', 14)
-        except RuntimeError:
-            self.set_font('Arial', 'B', 14)
-            
+            self.set_font(PDFReport.font_family, 'B', 14)
+        except Exception:
+            self.set_font('Helvetica', 'B', 14)
         self.cell(0, 10, label, 0, 1, 'L')
         self.ln(2)
 
     def chapter_body(self, text):
         try:
-            self.set_font('DejaVu', '', 11)
-        except RuntimeError:
-            self.set_font('Arial', '', 11)
-            
+            self.set_font(PDFReport.font_family, '', 11)
+        except Exception:
+            self.set_font('Helvetica', '', 11)
         self.multi_cell(0, 6, text)
         self.ln()
 
@@ -1251,23 +1249,33 @@ Nie cytuj dosłownie, parafrazuj i syntezuj.
         # 1. Przygotowanie fontów i czyszczenie tekstu
             font_path = ReportGenerator.ensure_font_exists()
             analysis_text = ReportGenerator.clean_text(analysis_text)
-            
+
+            # Reset font to default before trying to load DejaVu
+            PDFReport.font_family = 'Helvetica'
+
             pdf = PDFReport()
             font_loaded = False
             try:
-                pdf.add_font('DejaVu', '', font_path, uni=True)
-                pdf.add_font('DejaVu', 'B', font_path, uni=True)
-                font_loaded = True
-            except: pass
-            
+                if os.path.exists(font_path):
+                    pdf.add_font('DejaVu', '', font_path, uni=True)
+                    pdf.add_font('DejaVu', 'B', font_path, uni=True)
+                    font_loaded = True
+                    PDFReport.font_family = 'DejaVu'
+            except Exception:
+                font_loaded = False
+                PDFReport.font_family = 'Helvetica'
+
             pdf.add_page()
-            
+
             # Funkcja pomocnicza do ustawiania fontu
             def set_safe_font(family, style, size):
                 try:
-                    if font_loaded and family == 'DejaVu': pdf.set_font('DejaVu', style, size)
-                    else: pdf.set_font('Arial', style, size)
-                except: pdf.set_font('Arial', style, size)
+                    if font_loaded and family == 'DejaVu':
+                        pdf.set_font('DejaVu', style, size)
+                    else:
+                        pdf.set_font('Helvetica', style, size)
+                except Exception:
+                    pdf.set_font('Helvetica', style, size)
     
             # --- NOWA FUNKCJA: Drukowanie z obsługą **POGRUBIENIA** ---
             def print_formatted_text(text):
