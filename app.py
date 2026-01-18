@@ -940,37 +940,45 @@ class ReportGenerator:
         """Kompleksowe czyszczenie tekstu z niebezpiecznych znaków Unicode i naprawa sklejonych słów."""
         if not isinstance(text, str):
             return str(text)
-            
+
+        import re
+
         replacements = {
-            # --- NAPRAWA SKLEJONYCH SŁÓW (Wehaircutthisby) ---
-            '\u200b': ' ',   # Zero-width space -> ZAMIENIAMY NA SPACJĘ (kluczowe!)
+            # --- NAPRAWA SKLEJONYCH SŁÓW ---
+            '\u200b': '',    # Zero-width space -> usuwamy
+            '\u200c': '',    # Zero-width non-joiner
+            '\u200d': '',    # Zero-width joiner
+            '\ufeff': '',    # BOM / zero-width no-break space
             '\xa0': ' ',     # Non-breaking space -> spacja
-            
+
             # --- NAPRAWA DZIWNYCH GWIAZDEK ---
             '∗': '*',        # Operator matematyczny -> zwykła gwiazdka
             '\u2217': '*',   # To samo (kod unicode)
-            
+
             # --- STANDARDOWE ZAMIENNIKI ---
             '\u2013': '-', '\u2014': '-', '\u2011': '-',
             '\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"',
-            '\u2022': '*', '\u2026': '...', 
+            '\u2022': '*', '\u2026': '...',
             '\u2248': '~', '\u2260': '!=', '\u2264': '<=', '\u2265': '>=',
             '\u2191': '^', '\u2193': 'v', '\u2192': '->',
             '€': 'EUR', '£': 'GBP', '¥': 'JPY',
         }
-        
+
         for char, repl in replacements.items():
             text = text.replace(char, repl)
-            
+
+        # Usunięcie innych zero-width i niewidocznych znaków Unicode
+        text = re.sub(r'[\u200b-\u200f\u2028-\u202f\u2060-\u206f]', '', text)
+
         # Dodatkowa naprawa: spacja po kropce, jeśli jej brakuje (np. "share.We")
-        # Ale tylko jeśli po kropce jest duża litera
-        import re
         text = re.sub(r'\.(?=[A-Z])', '. ', text)
-        
+
+        # Naprawa $X.XXvalue -> $X.XX value (liczby sklejone ze słowami)
+        text = re.sub(r'(\$[\d,.]+)([a-zA-Z])', r'\1 \2', text)
+
         # Usuwanie podwójnych spacji
-        while '  ' in text:
-            text = text.replace('  ', ' ')
-            
+        text = re.sub(r' +', ' ', text)
+
         try:
             return text.encode('latin-1', 'replace').decode('latin-1')
         except:
@@ -1454,7 +1462,8 @@ Nie cytuj dosłownie, parafrazuj i syntezuj.
                     pdf.write(6, f"[{i}] {clean_link}")
                     pdf.ln(8) # Odstęp po każdym linku
 
-            return pdf.output(dest='S').encode('latin-1', errors='replace')
+            # fpdf2 returns bytearray directly, no need to encode
+            return bytes(pdf.output())
 
 # --- MAIN APPLICATION LOGIC ---
 def main():
@@ -2096,9 +2105,12 @@ def main():
             # --- WYŚWIETLANIE WYNIKU (JEŚLI ISTNIEJE W SESJI) ---
             if "ai_report_data" in st.session_state and st.session_state["ai_report_data"]:
                 report_data = st.session_state["ai_report_data"]
-                
+
+                # Clean the text before display (remove zero-width chars, fix formatting)
+                display_text = ReportGenerator.clean_text(report_data["text"]) if report_data.get("text") else ""
+
                 st.markdown("### 📝 Analysis Result")
-                st.markdown(report_data["text"])
+                st.markdown(display_text)
                 
                 # Wyświetlenie listy źródeł (jeśli są dostępne)
                 if report_data["citations"]:
