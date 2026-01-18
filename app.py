@@ -1385,6 +1385,74 @@ def main():
 
     # --- SIDEBAR ---
     with st.sidebar:
+        # --- USER AUTH SECTION ---
+        if SupabaseAuth.is_configured():
+            # Initialize session state for auth
+            if "user" not in st.session_state:
+                st.session_state["user"] = None
+            if "auth_mode" not in st.session_state:
+                st.session_state["auth_mode"] = "login"  # or "register"
+
+            current_user = st.session_state.get("user")
+
+            if current_user:
+                # User is logged in
+                st.success(f"Welcome, {current_user.email}!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Logout", use_container_width=True):
+                        SupabaseAuth.sign_out()
+                        st.session_state["user"] = None
+                        st.rerun()
+                with col2:
+                    if st.button("My Data", use_container_width=True):
+                        st.session_state["show_user_panel"] = True
+                st.markdown("---")
+            else:
+                # Login/Register forms
+                auth_tab1, auth_tab2 = st.tabs(["Login", "Register"])
+
+                with auth_tab1:
+                    with st.form("login_form"):
+                        login_email = st.text_input("Email", key="login_email")
+                        login_password = st.text_input("Password", type="password", key="login_pass")
+                        login_submit = st.form_submit_button("Login", use_container_width=True)
+
+                        if login_submit:
+                            if login_email and login_password:
+                                result = SupabaseAuth.sign_in(login_email, login_password)
+                                if result.get("success"):
+                                    st.session_state["user"] = result["user"]
+                                    st.success("Logged in successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error(result.get("error", "Login failed"))
+                            else:
+                                st.warning("Please enter email and password")
+
+                with auth_tab2:
+                    with st.form("register_form"):
+                        reg_email = st.text_input("Email", key="reg_email")
+                        reg_password = st.text_input("Password", type="password", key="reg_pass")
+                        reg_password2 = st.text_input("Confirm Password", type="password", key="reg_pass2")
+                        reg_submit = st.form_submit_button("Create Account", use_container_width=True)
+
+                        if reg_submit:
+                            if not reg_email or not reg_password:
+                                st.warning("Please fill all fields")
+                            elif reg_password != reg_password2:
+                                st.error("Passwords don't match")
+                            elif len(reg_password) < 6:
+                                st.error("Password must be at least 6 characters")
+                            else:
+                                result = SupabaseAuth.sign_up(reg_email, reg_password)
+                                if result.get("success"):
+                                    st.success("Account created! Please check your email to confirm.")
+                                else:
+                                    st.error(result.get("error", "Registration failed"))
+
+                st.markdown("---")
+
         st.header("Configuration")
         
         # Get ticker list
@@ -1392,13 +1460,56 @@ def main():
         
         # --- MAIN SECTION ---
         st.subheader("1. Main Company")
+
+        # Show user's watchlist if logged in
+        current_user = st.session_state.get("user")
+        if current_user and SupabaseAuth.is_configured():
+            watchlist = SupabaseAuth.get_watchlist(current_user.id)
+            if watchlist:
+                watchlist_tickers = [f"{w['ticker']} | {w.get('company_name', '')}" for w in watchlist]
+                st.caption("Your Watchlist:")
+                selected_from_watchlist = st.selectbox(
+                    "Quick select from watchlist:",
+                    options=[""] + watchlist_tickers,
+                    key="watchlist_select"
+                )
+                if selected_from_watchlist:
+                    # Find matching item in tickers_list
+                    ticker_from_wl = selected_from_watchlist.split(" | ")[0]
+                    matching = [t for t in tickers_list if t.startswith(ticker_from_wl)]
+                    if matching:
+                        default_idx = tickers_list.index(matching[0])
+                    else:
+                        default_idx = 0
+                else:
+                    default_idx = 0
+            else:
+                default_idx = 0
+        else:
+            default_idx = 0
+
         selected_item = st.selectbox(
             "Search for a company:",
             options=tickers_list,
-            index=0
+            index=default_idx
         )
         ticker_input = selected_item.split(" | ")[0]
-        
+        company_name = selected_item.split(" | ")[1] if " | " in selected_item else ticker_input
+
+        # Add to watchlist button (if logged in)
+        if current_user and SupabaseAuth.is_configured():
+            user_watchlist_tickers = [w['ticker'] for w in SupabaseAuth.get_watchlist(current_user.id)]
+            if ticker_input in user_watchlist_tickers:
+                if st.button("Remove from Watchlist", key="remove_wl"):
+                    if SupabaseAuth.remove_from_watchlist(current_user.id, ticker_input):
+                        st.success(f"Removed {ticker_input} from watchlist!")
+                        st.rerun()
+            else:
+                if st.button("Add to Watchlist", key="add_wl"):
+                    if SupabaseAuth.add_to_watchlist(current_user.id, ticker_input, company_name):
+                        st.success(f"Added {ticker_input} to watchlist!")
+                        st.rerun()
+
         # What-If for Main
         st.caption(f"Simulation: {ticker_input}")
         rev_change = st.slider("Revenue Change (%)", -30, 30, key='rev_change')
@@ -1871,13 +1982,38 @@ def main():
                     citations=report_data["citations"]
                 )
                 
-                st.download_button(
-                    label="📄 Download Professional PDF Report",
-                    data=pdf_bytes,
-                    file_name=f"{ticker_input}_Perplexity_Report.pdf",
-                    mime="application/pdf"
-                )
-                            
+                dl_col1, dl_col2 = st.columns(2)
+                with dl_col1:
+                    st.download_button(
+                        label="📄 Download PDF Report",
+                        data=pdf_bytes,
+                        file_name=f"{ticker_input}_Perplexity_Report.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with dl_col2:
+                    # Save to account (if logged in)
+                    current_user = st.session_state.get("user")
+                    if current_user and SupabaseAuth.is_configured():
+                        if st.button("💾 Save to My Analyses", use_container_width=True, key="save_analysis"):
+                            financial_data = {
+                                "revenue": sankey_vals.get('Revenue', 0),
+                                "net_income": sankey_vals.get('Net Income', 0),
+                                "pe_ratio": info.get("trailingPE"),
+                            }
+                            if SupabaseAuth.save_analysis(
+                                current_user.id,
+                                ticker_input,
+                                report_data["text"],
+                                report_data.get("citations"),
+                                financial_data
+                            ):
+                                st.success("Analysis saved to your account!")
+                            else:
+                                st.error("Failed to save analysis")
+                    else:
+                        st.info("Login to save analyses to your account")
+
     with tab4:
         st.header("Additional Data")
         col_a, col_b = st.columns(2)
@@ -1959,6 +2095,32 @@ def main():
                 )
             else:
                 st.button("📦 All Data", disabled=True, help="No data available")
+
+        # --- MY SAVED ANALYSES SECTION (for logged-in users) ---
+        current_user = st.session_state.get("user")
+        if current_user and SupabaseAuth.is_configured():
+            st.divider()
+            st.subheader("📁 My Saved Analyses")
+
+            saved_analyses = SupabaseAuth.get_saved_analyses(current_user.id)
+
+            if saved_analyses:
+                for analysis in saved_analyses:
+                    with st.expander(f"**{analysis['ticker']}** - {analysis['created_at'][:10]}"):
+                        st.markdown(analysis.get('report_text', 'No content')[:500] + "...")
+
+                        if analysis.get('financial_data'):
+                            fd = analysis['financial_data']
+                            st.caption(f"Revenue: ${fd.get('revenue', 0):,.0f} | Net Income: ${fd.get('net_income', 0):,.0f}")
+
+                        col_view, col_del = st.columns([3, 1])
+                        with col_del:
+                            if st.button("Delete", key=f"del_{analysis['id']}"):
+                                if SupabaseAuth.delete_analysis(current_user.id, analysis['id']):
+                                    st.success("Analysis deleted!")
+                                    st.rerun()
+            else:
+                st.info("No saved analyses yet. Generate an AI report and click 'Save to My Analyses' to save it here.")
 
 if __name__ == "__main__":
      main()
