@@ -1169,9 +1169,10 @@ def main():
         # Priorytet: 1) Streamlit secrets, 2) Zmienna środowiskowa, 3) None
         PERPLEXITY_API_KEY = None
 
-        # Próba pobrania z st.secrets (Streamlit Cloud)
+        # Próba pobrania z st.secrets (Streamlit Cloud / lokalny secrets.toml)
         try:
-            PERPLEXITY_API_KEY = st.secrets.get("PERPLEXITY_API_KEY")
+            if "PERPLEXITY_API_KEY" in st.secrets:
+                PERPLEXITY_API_KEY = st.secrets["PERPLEXITY_API_KEY"]
         except Exception:
             pass
 
