@@ -101,19 +101,19 @@ class DataManager:
     def get_financials(ticker_symbol):
         try:
             ticker = yf.Ticker(ticker_symbol)
-            
+
             # Force fetching to check if data exists
             income_stmt = ticker.income_stmt
             balance_sheet = ticker.balance_sheet
             info = ticker.info
-            
+
             # Fetch extras (might fail)
             insider = getattr(ticker, 'insider_purchases', pd.DataFrame())
             recommendations = getattr(ticker, 'recommendations', pd.DataFrame())
 
             if income_stmt is None or income_stmt.empty:
                 return None
-                
+
             return {
                 "income_stmt": income_stmt,
                 "balance_sheet": balance_sheet,
@@ -126,13 +126,46 @@ class DataManager:
             return None
 
     @staticmethod
-    def extract_sankey_data(income_stmt, revenue_mod=1.0, cost_mod=1.0):
-        """Extract detailed data in 'Google-like' style."""
+    def get_available_periods(income_stmt):
+        """
+        Returns list of available reporting periods from income statement.
+        Each period is a tuple: (display_name, column_index)
+        """
+        if income_stmt is None or income_stmt.empty:
+            return []
+
+        periods = []
+        for idx, col in enumerate(income_stmt.columns):
+            # Format date nicely (e.g., "2024-Q3" or "2024-09")
+            if hasattr(col, 'strftime'):
+                # Determine quarter
+                quarter = (col.month - 1) // 3 + 1
+                display_name = f"{col.year}-Q{quarter} ({col.strftime('%Y-%m-%d')})"
+            else:
+                display_name = str(col)
+            periods.append((display_name, idx))
+
+        return periods
+
+    @staticmethod
+    def extract_sankey_data(income_stmt, period_index=0, revenue_mod=1.0, cost_mod=1.0):
+        """
+        Extract detailed data in 'Google-like' style.
+
+        Args:
+            income_stmt: DataFrame with income statement data
+            period_index: Which period (column) to use (0 = most recent)
+            revenue_mod: Revenue modifier for what-if analysis
+            cost_mod: Cost modifier for what-if analysis
+        """
         try:
             if income_stmt is None or income_stmt.empty:
                 return {}
 
-            latest = income_stmt.iloc[:, 0]
+            # Select the specified period (column)
+            if period_index >= len(income_stmt.columns):
+                period_index = 0
+            latest = income_stmt.iloc[:, period_index]
             
             def get_val(keys):
                 for k in keys:
@@ -329,6 +362,118 @@ class Visualizer:
             return fig
         except: return None
 
+    @staticmethod
+    def plot_historical_trend(income_stmt, metrics=None):
+        """
+        Creates a line chart showing historical trends of key financial metrics.
+
+        Args:
+            income_stmt: DataFrame with income statement (columns = periods)
+            metrics: List of metrics to plot. If None, uses defaults.
+        """
+        if income_stmt is None or income_stmt.empty:
+            return go.Figure()
+
+        # Default metrics to track
+        if metrics is None:
+            metrics = [
+                ("Total Revenue", "Revenue"),
+                ("Gross Profit", "Gross Profit"),
+                ("Operating Income", "Operating Income"),
+                ("Net Income", "Net Income")
+            ]
+
+        fig = go.Figure()
+
+        # Colors for different metrics
+        colors = ["#4285F4", "#34A853", "#FBBC05", "#EA4335"]
+
+        for i, (metric_key, metric_name) in enumerate(metrics):
+            # Try to find the metric in the income statement
+            if metric_key in income_stmt.index:
+                values = income_stmt.loc[metric_key].values
+                # Format dates for x-axis (reverse to show oldest first)
+                dates = []
+                for col in income_stmt.columns:
+                    if hasattr(col, 'strftime'):
+                        quarter = (col.month - 1) // 3 + 1
+                        dates.append(f"{col.year}-Q{quarter}")
+                    else:
+                        dates.append(str(col))
+
+                # Reverse to show chronological order (oldest to newest)
+                dates_rev = dates[::-1]
+                values_rev = values[::-1]
+
+                fig.add_trace(go.Scatter(
+                    x=dates_rev,
+                    y=values_rev,
+                    name=metric_name,
+                    mode='lines+markers',
+                    line=dict(color=colors[i % len(colors)], width=2),
+                    marker=dict(size=8),
+                    hovertemplate=f'{metric_name}: $%{{y:,.0f}}<extra></extra>'
+                ))
+
+        fig.update_layout(
+            title="<b>Historical Financial Trends</b>",
+            xaxis_title="Period",
+            yaxis_title="Value ($)",
+            height=400,
+            hovermode='x unified',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=20, r=20, t=60, b=20)
+        )
+
+        # Format y-axis with abbreviations
+        fig.update_yaxes(tickformat=".2s")
+
+        return fig
+
+    @staticmethod
+    def calculate_yoy_metrics(income_stmt):
+        """
+        Calculates Year-over-Year changes for key metrics.
+
+        Returns dict with metric name -> (current_value, yoy_change_pct)
+        """
+        if income_stmt is None or income_stmt.empty:
+            return {}
+
+        if len(income_stmt.columns) < 2:
+            return {}
+
+        results = {}
+        metrics_to_calc = [
+            ("Total Revenue", "Revenue"),
+            ("Gross Profit", "Gross Profit"),
+            ("Operating Income", "Operating Income"),
+            ("Net Income", "Net Income")
+        ]
+
+        for metric_key, metric_name in metrics_to_calc:
+            if metric_key in income_stmt.index:
+                current = income_stmt.loc[metric_key].iloc[0]
+                # Find year-ago value (typically 4 quarters back, or use last available)
+                if len(income_stmt.columns) >= 5:
+                    year_ago = income_stmt.loc[metric_key].iloc[4]
+                else:
+                    year_ago = income_stmt.loc[metric_key].iloc[-1]
+
+                if year_ago and year_ago != 0:
+                    yoy_change = ((current - year_ago) / abs(year_ago)) * 100
+                else:
+                    yoy_change = None
+
+                results[metric_name] = (current, yoy_change)
+
+        return results
 
 
 class PDFReport(FPDF):
@@ -966,14 +1111,39 @@ def main():
     # Fetch data for main ticker
     data_mgr = DataManager()
     data_dict = data_mgr.get_financials(ticker_input)
-    
-    if not data_dict:
-        return 
 
-    # Process data for MAIN (with sliders)
+    if not data_dict:
+        return
+
+    # --- PERIOD SELECTION (after data is loaded) ---
+    # Get available periods for dropdown
+    available_periods = DataManager.get_available_periods(data_dict['income_stmt'])
+
+    # Add period selector to sidebar
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("3. Reporting Period")
+        if available_periods:
+            period_options = [p[0] for p in available_periods]
+            selected_period_name = st.selectbox(
+                "Select period for analysis:",
+                options=period_options,
+                index=0,
+                help="Choose which quarterly report to analyze"
+            )
+            # Find the index for the selected period
+            selected_period_index = next(
+                (p[1] for p in available_periods if p[0] == selected_period_name), 0
+            )
+        else:
+            selected_period_index = 0
+            st.info("No historical periods available")
+
+    # Process data for MAIN (with selected period and sliders)
     sankey_vals = data_mgr.extract_sankey_data(
-        data_dict['income_stmt'], 
-        revenue_mod=1 + (rev_change/100), 
+        data_dict['income_stmt'],
+        period_index=selected_period_index,
+        revenue_mod=1 + (rev_change/100),
         cost_mod=1 + (cost_change/100)
     )
 
@@ -1015,25 +1185,59 @@ def main():
             with col2:
                 st.subheader(f"Benchmark: {ticker_comp}")
                 comp_data = data_mgr.get_financials(ticker_comp)
-                
+
                 if comp_data:
                     if comp_rev_change != 0 or comp_cost_change != 0:
                         st.caption(f"Simulation: Rev {comp_rev_change:+}%, Cost {comp_cost_change:+}%")
-                    
+
                     comp_vals = data_mgr.extract_sankey_data(
                         comp_data['income_stmt'],
                         revenue_mod=1 + (comp_rev_change/100),
                         cost_mod=1 + (comp_cost_change/100)
                     )
-                    
+
                     fig_sankey_comp = Visualizer.plot_sankey(comp_vals, title_suffix=f"({ticker_comp})")
                     st.plotly_chart(fig_sankey_comp, use_container_width=True, key="sankey_comp")
-                    
+
                     fig_water_comp = Visualizer.plot_waterfall(comp_vals, title_suffix=f"({ticker_comp})")
                     st.plotly_chart(fig_water_comp, use_container_width=True, key="water_comp")
                 else:
                     st.warning("No data found for the comparison ticker.")
 
+        # --- HISTORICAL TRENDS SECTION ---
+        st.divider()
+        st.subheader("📈 Historical Trends")
+
+        # Plot historical trend chart
+        fig_trend = Visualizer.plot_historical_trend(data_dict['income_stmt'])
+        st.plotly_chart(fig_trend, use_container_width=True, key="historical_trend")
+
+        # YoY metrics table
+        yoy_metrics = Visualizer.calculate_yoy_metrics(data_dict['income_stmt'])
+        if yoy_metrics:
+            st.markdown("#### Year-over-Year Changes")
+            yoy_cols = st.columns(len(yoy_metrics))
+            for i, (metric_name, (current_val, yoy_change)) in enumerate(yoy_metrics.items()):
+                with yoy_cols[i]:
+                    # Format current value
+                    if current_val >= 1e9:
+                        formatted_val = f"${current_val/1e9:.1f}B"
+                    elif current_val >= 1e6:
+                        formatted_val = f"${current_val/1e6:.1f}M"
+                    else:
+                        formatted_val = f"${current_val:,.0f}"
+
+                    # Format YoY change with color indicator
+                    if yoy_change is not None:
+                        delta_str = f"{yoy_change:+.1f}%"
+                    else:
+                        delta_str = "N/A"
+
+                    st.metric(
+                        label=metric_name,
+                        value=formatted_val,
+                        delta=delta_str if yoy_change is not None else None
+                    )
 
     with tab2:
         st.subheader("📊 Metrics Dashboard")
