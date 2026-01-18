@@ -5,3 +5,4 @@ pandas
 fpdf2
 openai
 openpyxl
+supabase
