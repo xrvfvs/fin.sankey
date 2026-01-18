@@ -2071,6 +2071,9 @@ def main():
 
             # --- LOGIKA CACHE ---
             if use_cache_btn and cached_report:
+                # Clean cached text in case it contains old unclean data
+                if cached_report.get("text"):
+                    cached_report["text"] = ReportGenerator.clean_text(cached_report["text"])
                 st.session_state["ai_report_data"] = cached_report
                 st.toast(f"✅ Loaded from {cache_source} cache!", icon="💾")
 
@@ -2079,6 +2082,9 @@ def main():
                 with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
                         # Wywołanie API (zwraca teraz krotkę: tekst, lista_cytowań)
                         analysis_text, citations = ReportGenerator.get_ai_analysis(PERPLEXITY_API_KEY, prompt)
+
+                        # CZYŚĆ TEKST OD RAZU po otrzymaniu z API
+                        analysis_text = ReportGenerator.clean_text(analysis_text)
 
                         # Zapisanie wyniku do sesji jako słownik
                         report_data = {
