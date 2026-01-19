@@ -394,6 +394,36 @@ TRANSLATIONS = {
         'en': 'No historical periods available',
         'pl': 'Brak dostępnych okresów historycznych',
     },
+
+    # --- News Feed ---
+    'news_title': {
+        'en': 'Latest News for {ticker}',
+        'pl': 'Najnowsze wiadomości dla {ticker}',
+    },
+    'latest_news': {
+        'en': 'Latest News',
+        'pl': 'Najnowsze Wiadomości',
+    },
+    'no_news_available': {
+        'en': 'No news available for {ticker}',
+        'pl': 'Brak wiadomości dla {ticker}',
+    },
+    'news_sentiment': {
+        'en': 'News Sentiment',
+        'pl': 'Sentyment Wiadomości',
+    },
+    'positive_news': {
+        'en': 'Positive',
+        'pl': 'Pozytywne',
+    },
+    'negative_news': {
+        'en': 'Negative',
+        'pl': 'Negatywne',
+    },
+    'neutral_news': {
+        'en': 'Neutral',
+        'pl': 'Neutralne',
+    },
 }
 
 

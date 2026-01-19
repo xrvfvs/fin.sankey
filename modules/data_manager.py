@@ -8,6 +8,7 @@ import yfinance as yf
 import streamlit as st
 
 from modules.utils import retry_on_rate_limit
+from modules.logger import log_error, log_warning, log_debug, log_api_call
 
 
 class DataManager:
@@ -45,8 +46,9 @@ class DataManager:
                 name = str(row['Security Name'])
                 if is_clean(name):
                     all_tickers.add(f"{symbol} | {name}")
-        except Exception:
-            pass
+            log_debug(f"NASDAQ list loaded: {len(all_tickers)} tickers")
+        except Exception as e:
+            log_warning(f"Failed to fetch NASDAQ ticker list: {e}")
 
         # 2. Backup S&P 500 (Always safe)
         try:
@@ -55,8 +57,9 @@ class DataManager:
                 symbol = row['Symbol'].replace('.', '-')
                 name = row['Security']
                 all_tickers.add(f"{symbol} | {name}")
-        except Exception:
-            pass
+            log_debug("S&P 500 list loaded")
+        except Exception as e:
+            log_warning(f"Failed to fetch S&P 500 list: {e}")
 
         # 3. Backup NASDAQ-100
         try:
@@ -71,8 +74,9 @@ class DataManager:
                         for _, row in df.iterrows():
                             all_tickers.add(f"{row[col_name]} | {row[name_col]}")
                         break
-        except Exception:
-            pass
+            log_debug("NASDAQ-100 list loaded")
+        except Exception as e:
+            log_warning(f"Failed to fetch NASDAQ-100 list: {e}")
 
         # Fallback in case of no internet/errors
         if not all_tickers:
@@ -107,6 +111,8 @@ class DataManager:
                 "recommendations": recommendations
             }
         except Exception as e:
+            log_error(e, f"Error fetching data for {ticker_symbol}")
+            log_api_call("yfinance", ticker=ticker_symbol, success=False)
             st.error(f"Error fetching data for {ticker_symbol}: {e}")
             return None
 
@@ -197,5 +203,6 @@ class DataManager:
                 "Net Income": net_income
             }
         except Exception as e:
+            log_error(e, "Error processing Sankey data")
             st.error(f"Error processing data: {e}")
             return {}

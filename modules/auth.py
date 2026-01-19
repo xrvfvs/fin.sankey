@@ -8,6 +8,7 @@ import streamlit as st
 from supabase import create_client, Client
 
 from config import TIER_LIMITS, GLOBAL_CACHE_TTL_DAYS, get_tier_limits
+from modules.logger import log_error, log_warning, log_debug, log_user_action
 
 
 class SupabaseAuth:
@@ -45,15 +46,16 @@ class SupabaseAuth:
             if session:
                 try:
                     client.auth.set_session(session.access_token, session.refresh_token)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_debug(f"Session restore skipped: {e}")
 
     @classmethod
     def is_configured(cls) -> bool:
         """Check if Supabase is properly configured."""
         try:
             return "supabase" in st.secrets and "url" in st.secrets["supabase"]
-        except Exception:
+        except Exception as e:
+            log_debug(f"Supabase config check failed: {e}")
             return False
 
     @classmethod
@@ -104,8 +106,10 @@ class SupabaseAuth:
         try:
             client.auth.sign_out()
             st.session_state.pop("supabase_session", None)
+            log_user_action("sign_out")
             return True
-        except Exception:
+        except Exception as e:
+            log_warning(f"Sign out failed: {e}")
             return False
 
     @classmethod
@@ -117,7 +121,8 @@ class SupabaseAuth:
         try:
             response = client.auth.get_user()
             return response.user if response else None
-        except Exception:
+        except Exception as e:
+            log_debug(f"Get user failed: {e}")
             return None
 
     # --- WATCHLIST METHODS ---

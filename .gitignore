@@ -47,3 +47,4 @@ DejaVuSans.ttf
 reports/
 .report_cache/
 *.pdf
+logs/
