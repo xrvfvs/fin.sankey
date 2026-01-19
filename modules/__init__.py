@@ -18,6 +18,11 @@ from modules.news import (
     fetch_news, render_news_feed, render_news_sidebar,
     get_market_sentiment_from_news
 )
+from modules.portfolio import (
+    calculate_rsi, calculate_macd, calculate_bollinger_bands,
+    get_technical_signals, render_technical_indicators,
+    calculate_portfolio_value, render_portfolio_summary
+)
 
 __all__ = [
     'retry_on_rate_limit',
@@ -47,4 +52,11 @@ __all__ = [
     'render_news_feed',
     'render_news_sidebar',
     'get_market_sentiment_from_news',
+    'calculate_rsi',
+    'calculate_macd',
+    'calculate_bollinger_bands',
+    'get_technical_signals',
+    'render_technical_indicators',
+    'calculate_portfolio_value',
+    'render_portfolio_summary',
 ]

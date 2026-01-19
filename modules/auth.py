@@ -362,6 +362,117 @@ class SupabaseAuth:
         limits = cls.get_tier_limits(tier)
         return limits.get('historical_periods')
 
+    # --- PORTFOLIO METHODS ---
+    @classmethod
+    def get_portfolio(cls, user_id: str) -> list:
+        """Get user's portfolio holdings."""
+        client = cls.get_client()
+        if not client:
+            return []
+        try:
+            response = client.table("portfolio").select("*").eq("user_id", user_id).execute()
+            return response.data if response.data else []
+        except Exception as e:
+            log_debug(f"Failed to get portfolio: {e}")
+            return []
+
+    @classmethod
+    def add_to_portfolio(cls, user_id: str, ticker: str, shares: float, avg_cost: float, company_name: str = None) -> dict:
+        """Add or update a position in portfolio."""
+        client = cls.get_client()
+        if not client:
+            return {"success": False, "error": "Client not configured"}
+        try:
+            cls.restore_session()
+            # Check if position already exists
+            existing = client.table("portfolio").select("*").eq("user_id", user_id).eq("ticker", ticker).execute()
+
+            if existing.data:
+                # Update existing position
+                old_shares = existing.data[0].get('shares', 0)
+                old_cost = existing.data[0].get('avg_cost', 0)
+                # Calculate new average cost
+                total_cost = (old_shares * old_cost) + (shares * avg_cost)
+                new_shares = old_shares + shares
+                new_avg_cost = total_cost / new_shares if new_shares > 0 else avg_cost
+
+                response = client.table("portfolio").update({
+                    "shares": new_shares,
+                    "avg_cost": new_avg_cost,
+                    "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }).eq("user_id", user_id).eq("ticker", ticker).execute()
+            else:
+                # Insert new position
+                response = client.table("portfolio").insert({
+                    "user_id": user_id,
+                    "ticker": ticker,
+                    "shares": shares,
+                    "avg_cost": avg_cost,
+                    "company_name": company_name
+                }).execute()
+
+            log_user_action("portfolio_add", user_id=user_id, details={"ticker": ticker, "shares": shares})
+            return {"success": True, "data": response.data}
+        except Exception as e:
+            log_warning(f"Failed to add to portfolio: {e}")
+            return {"success": False, "error": str(e)}
+
+    @classmethod
+    def remove_from_portfolio(cls, user_id: str, ticker: str) -> bool:
+        """Remove a position from portfolio."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("portfolio").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+            log_user_action("portfolio_remove", user_id=user_id, details={"ticker": ticker})
+            return True
+        except Exception as e:
+            log_warning(f"Failed to remove from portfolio: {e}")
+            return False
+
+    @classmethod
+    def update_portfolio_position(cls, user_id: str, ticker: str, shares: float, avg_cost: float) -> bool:
+        """Update a portfolio position."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            cls.restore_session()
+            client.table("portfolio").update({
+                "shares": shares,
+                "avg_cost": avg_cost,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq("user_id", user_id).eq("ticker", ticker).execute()
+            return True
+        except Exception as e:
+            log_warning(f"Failed to update portfolio position: {e}")
+            return False
+
+    @classmethod
+    def can_add_to_portfolio(cls, user_id: str) -> dict:
+        """Check if user can add more positions to portfolio."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        portfolio = cls.get_portfolio(user_id)
+        current_count = len(portfolio)
+
+        max_limit = limits.get('portfolio_max')
+
+        if max_limit is None:
+            return {'allowed': True, 'used': current_count, 'limit': None, 'tier': tier}
+
+        if current_count >= max_limit:
+            return {
+                'allowed': False,
+                'used': current_count,
+                'limit': max_limit,
+                'tier': tier,
+                'message': f"Portfolio limit reached ({current_count}/{max_limit}). Upgrade to Pro!"
+            }
+
+        return {'allowed': True, 'used': current_count, 'limit': max_limit, 'tier': tier}
+
     # --- GLOBAL REPORTS CACHE METHODS ---
     @classmethod
     def get_global_cached_report(cls, ticker: str) -> dict:

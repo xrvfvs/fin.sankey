@@ -118,6 +118,10 @@ TRANSLATIONS = {
         'en': '📑 Extra Data',
         'pl': '📑 Dodatkowe Dane',
     },
+    'tab_portfolio': {
+        'en': '💼 Portfolio',
+        'pl': '💼 Portfel',
+    },
 
     # --- Tab 1: Visualization ---
     'analysis': {
@@ -423,6 +427,80 @@ TRANSLATIONS = {
     'neutral_news': {
         'en': 'Neutral',
         'pl': 'Neutralne',
+    },
+
+    # --- Portfolio & Technical Analysis ---
+    'portfolio': {
+        'en': 'Portfolio',
+        'pl': 'Portfel',
+    },
+    'portfolio_tracker': {
+        'en': 'Portfolio Tracker',
+        'pl': 'Śledzenie Portfela',
+    },
+    'portfolio_empty': {
+        'en': 'Your portfolio is empty. Add some holdings to get started.',
+        'pl': 'Twój portfel jest pusty. Dodaj pozycje, aby rozpocząć.',
+    },
+    'total_value': {
+        'en': 'Total Value',
+        'pl': 'Wartość Całkowita',
+    },
+    'total_gain': {
+        'en': 'Total Gain/Loss',
+        'pl': 'Zysk/Strata',
+    },
+    'daily_change': {
+        'en': 'Daily Change',
+        'pl': 'Zmiana Dzienna',
+    },
+    'positions': {
+        'en': 'Positions',
+        'pl': 'Pozycje',
+    },
+    'holdings': {
+        'en': 'Holdings',
+        'pl': 'Aktywa',
+    },
+    'add_position': {
+        'en': 'Add Position',
+        'pl': 'Dodaj Pozycję',
+    },
+    'shares': {
+        'en': 'Shares',
+        'pl': 'Akcje',
+    },
+    'avg_cost': {
+        'en': 'Average Cost',
+        'pl': 'Średni Koszt',
+    },
+    'ticker': {
+        'en': 'Ticker',
+        'pl': 'Ticker',
+    },
+    'technical_analysis': {
+        'en': 'Technical Analysis',
+        'pl': 'Analiza Techniczna',
+    },
+    'loading_indicators': {
+        'en': 'Loading technical indicators...',
+        'pl': 'Ładowanie wskaźników technicznych...',
+    },
+    'insufficient_data_for_analysis': {
+        'en': 'Insufficient data for technical analysis',
+        'pl': 'Niewystarczające dane do analizy technicznej',
+    },
+    'current_price': {
+        'en': 'Current Price',
+        'pl': 'Aktualna Cena',
+    },
+    'overall_signal': {
+        'en': 'Overall Signal',
+        'pl': 'Sygnał Ogólny',
+    },
+    'portfolio_limit_reached': {
+        'en': 'Portfolio limit reached ({used}/{limit}). Upgrade to Pro for more positions!',
+        'pl': 'Limit portfela osiągnięty ({used}/{limit}). Ulepsz do Pro, aby dodać więcej pozycji!',
     },
 }
 

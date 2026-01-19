@@ -18,6 +18,7 @@ from modules.reports import ReportGenerator
 from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_current_theme
 from modules.i18n import init_language, t, render_language_selector
 from modules.news import render_news_feed, get_market_sentiment_from_news
+from modules.portfolio import render_technical_indicators, render_portfolio_summary
 
 
 # --- PAGE CONFIGURATION ---
@@ -313,7 +314,7 @@ def main():
     info = data_dict.get("info", {}) or {}
 
     # --- MAIN TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs([t('tab_viz'), t('tab_metrics'), t('tab_ai_report'), t('tab_extra')])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([t('tab_viz'), t('tab_metrics'), t('tab_ai_report'), t('tab_extra'), t('tab_portfolio')])
 
     with tab1:
         render_tab_visualization(data_mgr, data_dict, ticker_input, sankey_vals, rev_change, cost_change,
@@ -327,6 +328,9 @@ def main():
 
     with tab4:
         render_tab_extra_data(ticker_input, data_dict)
+
+    with tab5:
+        render_tab_portfolio(ticker_input)
 
 
 def render_tab_visualization(data_mgr, data_dict, ticker_input, sankey_vals, rev_change, cost_change,
@@ -1012,6 +1016,83 @@ def render_tab_extra_data(ticker_input, data_dict):
                                 st.rerun()
         else:
             st.info("No saved analyses yet. Generate an AI report and click 'Save to My Analyses' to save it here.")
+
+
+def render_tab_portfolio(ticker_input: str):
+    """Render Tab 5: Portfolio & Technical Analysis."""
+    st.header(t('portfolio_tracker'))
+
+    current_user = st.session_state.get("user")
+
+    # --- TECHNICAL ANALYSIS SECTION (available for all) ---
+    st.subheader(f"📈 {t('technical_analysis')}")
+    render_technical_indicators(ticker_input)
+
+    st.divider()
+
+    # --- PORTFOLIO SECTION (logged-in users only) ---
+    st.subheader(f"💼 {t('portfolio')}")
+
+    if not current_user or not SupabaseAuth.is_configured():
+        st.info("🔒 Login to track your portfolio and see your positions.")
+        return
+
+    # Check portfolio limits
+    portfolio_check = SupabaseAuth.can_add_to_portfolio(current_user.id)
+    portfolio = SupabaseAuth.get_portfolio(current_user.id)
+
+    # Show limit info
+    if portfolio_check.get('limit'):
+        st.caption(f"💼 {t('positions')}: {portfolio_check['used']}/{portfolio_check['limit']} ({portfolio_check['tier'].upper()})")
+
+    # Add new position form
+    with st.expander(f"➕ {t('add_position')}", expanded=False):
+        if not portfolio_check.get('allowed', True):
+            st.warning(t('portfolio_limit_reached', used=portfolio_check['used'], limit=portfolio_check['limit']))
+        else:
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+
+            with col1:
+                new_ticker = st.text_input(t('ticker'), placeholder="AAPL", key="new_portfolio_ticker").upper()
+            with col2:
+                new_shares = st.number_input(t('shares'), min_value=0.01, value=1.0, step=0.01, key="new_portfolio_shares")
+            with col3:
+                new_avg_cost = st.number_input(t('avg_cost'), min_value=0.01, value=100.0, step=0.01, key="new_portfolio_cost")
+            with col4:
+                st.write("")  # Spacer
+                st.write("")
+                if st.button(t('add_position'), key="btn_add_portfolio"):
+                    if new_ticker:
+                        result = SupabaseAuth.add_to_portfolio(
+                            current_user.id,
+                            new_ticker,
+                            new_shares,
+                            new_avg_cost
+                        )
+                        if result.get('success'):
+                            st.success(f"Added {new_ticker} to portfolio!")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to add: {result.get('error')}")
+                    else:
+                        st.warning("Please enter a ticker symbol")
+
+    # Display portfolio summary
+    if portfolio:
+        render_portfolio_summary(portfolio)
+
+        # Delete position buttons
+        st.markdown("---")
+        st.caption("Remove positions:")
+        cols = st.columns(min(len(portfolio), 5))
+        for idx, holding in enumerate(portfolio):
+            with cols[idx % 5]:
+                if st.button(f"🗑️ {holding['ticker']}", key=f"del_portfolio_{holding['ticker']}"):
+                    if SupabaseAuth.remove_from_portfolio(current_user.id, holding['ticker']):
+                        st.success(f"Removed {holding['ticker']}")
+                        st.rerun()
+    else:
+        st.info(t('portfolio_empty'))
 
 
 if __name__ == "__main__":
