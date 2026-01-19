@@ -17,6 +17,7 @@ from modules.visualizer import Visualizer
 from modules.reports import ReportGenerator
 from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_current_theme
 from modules.i18n import init_language, t, render_language_selector
+from modules.news import render_news_feed, get_market_sentiment_from_news
 
 
 # --- PAGE CONFIGURATION ---
@@ -870,6 +871,34 @@ def render_tab_extra_data(ticker_input, data_dict):
             st.dataframe(rec_df.tail(10), use_container_width=True)
         else:
             st.write("No analyst recommendations available.")
+
+    # --- NEWS FEED SECTION ---
+    st.divider()
+    st.subheader(f"📰 {t('latest_news')}")
+
+    # Get news sentiment
+    sentiment = get_market_sentiment_from_news(ticker_input)
+
+    if sentiment.get('status') == 'ok' and sentiment.get('news_count', 0) > 0:
+        # Display sentiment summary
+        sent_col1, sent_col2, sent_col3, sent_col4 = st.columns(4)
+        with sent_col1:
+            st.metric(t('positive_news'), sentiment['positive'],
+                     delta=f"{sentiment['positive_ratio']*100:.0f}%")
+        with sent_col2:
+            st.metric(t('negative_news'), sentiment['negative'],
+                     delta=f"-{sentiment['negative_ratio']*100:.0f}%" if sentiment['negative'] > 0 else "0%")
+        with sent_col3:
+            st.metric(t('neutral_news'), sentiment['neutral'])
+        with sent_col4:
+            score = sentiment['sentiment_score']
+            sentiment_label = "🟢 Positive" if score > 0.1 else "🔴 Negative" if score < -0.1 else "🟡 Neutral"
+            st.metric(t('news_sentiment'), sentiment_label)
+
+        # Display news feed
+        render_news_feed(ticker_input, show_thumbnails=True)
+    else:
+        st.info(t('no_news_available', ticker=ticker_input))
 
     # --- EXPORT DATA SECTION ---
     st.divider()
