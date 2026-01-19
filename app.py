@@ -2115,6 +2115,9 @@ def main():
                 # Clean the text before display (remove zero-width chars, fix formatting)
                 display_text = ReportGenerator.clean_text(report_data["text"]) if report_data.get("text") else ""
 
+                # Escape $ signs to prevent LaTeX interpretation in Streamlit markdown
+                display_text = display_text.replace("$", "\\$")
+
                 st.markdown("### 📝 Analysis Result")
                 st.markdown(display_text)
                 
