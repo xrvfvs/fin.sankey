@@ -2245,8 +2245,14 @@ def main():
             # --- CHECK AI REPORT LIMIT ---
             ai_limit_info = None
             can_generate = True
+            guest_blocked = False
 
-            if current_user and SupabaseAuth.is_configured():
+            if not current_user:
+                # Guest users cannot generate AI reports
+                can_generate = False
+                guest_blocked = True
+                st.warning("🔒 Login required to generate AI reports. Create a free account to get started!")
+            elif SupabaseAuth.is_configured():
                 ai_limit_info = SupabaseAuth.can_generate_ai_report(current_user.id)
                 can_generate = ai_limit_info.get('allowed', True)
 
