@@ -19,6 +19,10 @@ from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_
 from modules.i18n import init_language, t, render_language_selector
 from modules.news import render_news_feed, get_market_sentiment_from_news
 from modules.portfolio import render_technical_indicators, render_portfolio_summary
+from modules.alerts import (
+    AlertType, ALERT_TYPE_LABELS, get_current_price,
+    check_alert_triggered, render_triggered_alerts
+)
 
 
 # --- PAGE CONFIGURATION ---
@@ -1093,6 +1097,121 @@ def render_tab_portfolio(ticker_input: str):
                         st.rerun()
     else:
         st.info(t('portfolio_empty'))
+
+    # --- PRICE ALERTS SECTION ---
+    st.divider()
+    st.subheader(f"🔔 {t('price_alerts')}")
+
+    # Check alerts limits
+    alerts_check = SupabaseAuth.can_create_alert(current_user.id)
+    alerts = SupabaseAuth.get_alerts(current_user.id)
+
+    # Show triggered alerts notification
+    if alerts:
+        render_triggered_alerts(alerts)
+
+    # Show limit info
+    if alerts_check.get('limit'):
+        st.caption(f"🔔 {t('price_alerts')}: {alerts_check['used']}/{alerts_check['limit']} ({alerts_check['tier'].upper()})")
+
+    # Create new alert form
+    with st.expander(f"➕ {t('create_alert')}", expanded=False):
+        if not alerts_check.get('allowed', True):
+            st.warning(t('alerts_limit_reached', used=alerts_check['used'], limit=alerts_check['limit']))
+        else:
+            col1, col2, col3 = st.columns([2, 2, 1])
+
+            with col1:
+                alert_ticker = st.text_input(t('ticker'), placeholder="AAPL", key="alert_ticker_input").upper()
+                if alert_ticker:
+                    current = get_current_price(alert_ticker)
+                    if current:
+                        st.caption(f"📊 {t('current_price')}: ${current:.2f}")
+
+            with col2:
+                alert_type = st.selectbox(
+                    t('alert_type'),
+                    options=[at.value for at in AlertType],
+                    format_func=lambda x: ALERT_TYPE_LABELS.get(AlertType(x), (x, x))[0],
+                    key="alert_type_select"
+                )
+
+                if alert_type in [AlertType.PRICE_ABOVE.value, AlertType.PRICE_BELOW.value]:
+                    alert_target = st.number_input(t('target_price'), min_value=0.01, value=100.0, step=0.01, key="alert_target_price")
+                else:
+                    alert_target = st.number_input(t('target_percent'), min_value=0.1, max_value=100.0, value=5.0, step=0.1, key="alert_target_pct")
+
+            with col3:
+                st.write("")
+                st.write("")
+                st.write("")
+                if st.button(t('create_alert'), key="btn_create_alert"):
+                    if alert_ticker:
+                        base_price = get_current_price(alert_ticker)
+                        result = SupabaseAuth.create_alert(
+                            current_user.id,
+                            alert_ticker,
+                            alert_type,
+                            alert_target,
+                            base_price
+                        )
+                        if result.get('success'):
+                            st.success(f"Alert created for {alert_ticker}!")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed: {result.get('error')}")
+                    else:
+                        st.warning(t('enter_ticker'))
+
+    # Display alerts list
+    if alerts:
+        st.markdown(f"**{t('your_alerts')}** ({len(alerts)})")
+
+        for alert in alerts:
+            ticker = alert.get('ticker', 'N/A')
+            alert_type = alert.get('alert_type', '')
+            target = alert.get('target_value', 0)
+            is_active = alert.get('is_active', True)
+
+            current_price = get_current_price(ticker)
+            is_triggered = False
+            if current_price:
+                is_triggered = check_alert_triggered(alert, current_price)
+
+            type_label = ALERT_TYPE_LABELS.get(AlertType(alert_type), (alert_type, alert_type))[0]
+
+            cols = st.columns([0.3, 1.5, 1, 1, 0.5, 0.5])
+
+            with cols[0]:
+                st.write("🔴" if is_triggered else "🟢" if is_active else "⚪")
+
+            with cols[1]:
+                st.write(f"**{ticker}** - {type_label}")
+
+            with cols[2]:
+                if alert_type in [AlertType.PRICE_ABOVE.value, AlertType.PRICE_BELOW.value]:
+                    st.write(f"${target:.2f}")
+                else:
+                    st.write(f"{target:.1f}%")
+
+            with cols[3]:
+                if current_price:
+                    st.caption(f"Now: ${current_price:.2f}")
+
+            with cols[4]:
+                toggle_label = "⏸️" if is_active else "▶️"
+                if st.button(toggle_label, key=f"toggle_{alert.get('id')}"):
+                    SupabaseAuth.toggle_alert(current_user.id, alert.get('id'), not is_active)
+                    st.rerun()
+
+            with cols[5]:
+                if st.button("🗑️", key=f"del_alert_{alert.get('id')}"):
+                    SupabaseAuth.delete_alert(current_user.id, alert.get('id'))
+                    st.rerun()
+
+        st.markdown("---")
+    else:
+        st.info(t('no_alerts'))
 
 
 if __name__ == "__main__":

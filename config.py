@@ -12,6 +12,7 @@ TIER_LIMITS = {
         'export_enabled': False,
         'historical_periods': 2,  # Only last 2 periods
         'portfolio_max': 3,  # Max stocks in portfolio
+        'alerts_max': 3,  # Max price alerts
     },
     'pro': {
         'ai_reports_per_month': 30,
@@ -20,6 +21,7 @@ TIER_LIMITS = {
         'export_enabled': True,
         'historical_periods': None,  # All periods
         'portfolio_max': 25,
+        'alerts_max': 20,
     },
     'enterprise': {
         'ai_reports_per_month': None,  # Unlimited
@@ -28,6 +30,7 @@ TIER_LIMITS = {
         'export_enabled': True,
         'historical_periods': None,  # All periods
         'portfolio_max': None,  # Unlimited
+        'alerts_max': None,  # Unlimited
     }
 }
 

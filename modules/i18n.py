@@ -502,6 +502,52 @@ TRANSLATIONS = {
         'en': 'Portfolio limit reached ({used}/{limit}). Upgrade to Pro for more positions!',
         'pl': 'Limit portfela osiągnięty ({used}/{limit}). Ulepsz do Pro, aby dodać więcej pozycji!',
     },
+
+    # --- Price Alerts ---
+    'price_alerts': {
+        'en': 'Price Alerts',
+        'pl': 'Alerty Cenowe',
+    },
+    'create_alert': {
+        'en': 'Create Alert',
+        'pl': 'Utwórz Alert',
+    },
+    'alert_type': {
+        'en': 'Alert Type',
+        'pl': 'Typ Alertu',
+    },
+    'target_price': {
+        'en': 'Target Price ($)',
+        'pl': 'Cena Docelowa ($)',
+    },
+    'target_percent': {
+        'en': 'Target Change (%)',
+        'pl': 'Docelowa Zmiana (%)',
+    },
+    'change_from_current': {
+        'en': 'change from current price',
+        'pl': 'zmiana od aktualnej ceny',
+    },
+    'your_alerts': {
+        'en': 'Your Alerts',
+        'pl': 'Twoje Alerty',
+    },
+    'no_alerts': {
+        'en': 'No alerts set. Create one to get notified about price changes.',
+        'pl': 'Brak alertów. Utwórz alert, aby otrzymywać powiadomienia o zmianach cen.',
+    },
+    'alerts_triggered': {
+        'en': 'alerts triggered',
+        'pl': 'alertów wyzwolonych',
+    },
+    'enter_ticker': {
+        'en': 'Please enter a ticker symbol',
+        'pl': 'Wprowadź symbol tickera',
+    },
+    'alerts_limit_reached': {
+        'en': 'Alerts limit reached ({used}/{limit}). Upgrade to Pro for more alerts!',
+        'pl': 'Limit alertów osiągnięty ({used}/{limit}). Ulepsz do Pro, aby dodać więcej alertów!',
+    },
 }
 
 

@@ -473,6 +473,98 @@ class SupabaseAuth:
 
         return {'allowed': True, 'used': current_count, 'limit': max_limit, 'tier': tier}
 
+    # --- PRICE ALERTS METHODS ---
+    @classmethod
+    def get_alerts(cls, user_id: str) -> list:
+        """Get user's price alerts."""
+        client = cls.get_client()
+        if not client:
+            return []
+        try:
+            response = client.table("price_alerts").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            return response.data if response.data else []
+        except Exception as e:
+            log_debug(f"Failed to get alerts: {e}")
+            return []
+
+    @classmethod
+    def create_alert(cls, user_id: str, ticker: str, alert_type: str, target_value: float, base_price: float = None) -> dict:
+        """Create a new price alert."""
+        client = cls.get_client()
+        if not client:
+            return {"success": False, "error": "Client not configured"}
+        try:
+            cls.restore_session()
+            response = client.table("price_alerts").insert({
+                "user_id": user_id,
+                "ticker": ticker,
+                "alert_type": alert_type,
+                "target_value": target_value,
+                "base_price": base_price,
+                "is_active": True
+            }).execute()
+
+            log_user_action("alert_create", user_id=user_id, details={"ticker": ticker, "type": alert_type})
+            return {"success": True, "data": response.data}
+        except Exception as e:
+            log_warning(f"Failed to create alert: {e}")
+            return {"success": False, "error": str(e)}
+
+    @classmethod
+    def delete_alert(cls, user_id: str, alert_id: str) -> bool:
+        """Delete a price alert."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            client.table("price_alerts").delete().eq("user_id", user_id).eq("id", alert_id).execute()
+            log_user_action("alert_delete", user_id=user_id, details={"alert_id": alert_id})
+            return True
+        except Exception as e:
+            log_warning(f"Failed to delete alert: {e}")
+            return False
+
+    @classmethod
+    def toggle_alert(cls, user_id: str, alert_id: str, is_active: bool) -> bool:
+        """Toggle alert active status."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            cls.restore_session()
+            client.table("price_alerts").update({
+                "is_active": is_active,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq("user_id", user_id).eq("id", alert_id).execute()
+            return True
+        except Exception as e:
+            log_warning(f"Failed to toggle alert: {e}")
+            return False
+
+    @classmethod
+    def can_create_alert(cls, user_id: str) -> dict:
+        """Check if user can create more alerts."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        alerts = cls.get_alerts(user_id)
+        current_count = len(alerts)
+
+        max_limit = limits.get('alerts_max')
+
+        if max_limit is None:
+            return {'allowed': True, 'used': current_count, 'limit': None, 'tier': tier}
+
+        if current_count >= max_limit:
+            return {
+                'allowed': False,
+                'used': current_count,
+                'limit': max_limit,
+                'tier': tier,
+                'message': f"Alerts limit reached ({current_count}/{max_limit}). Upgrade to Pro!"
+            }
+
+        return {'allowed': True, 'used': current_count, 'limit': max_limit, 'tier': tier}
+
     # --- GLOBAL REPORTS CACHE METHODS ---
     @classmethod
     def get_global_cached_report(cls, ticker: str) -> dict:

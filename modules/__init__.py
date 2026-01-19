@@ -23,6 +23,10 @@ from modules.portfolio import (
     get_technical_signals, render_technical_indicators,
     calculate_portfolio_value, render_portfolio_summary
 )
+from modules.alerts import (
+    AlertType, check_alert_triggered, check_user_alerts,
+    render_alert_form, render_alerts_list, render_triggered_alerts
+)
 
 __all__ = [
     'retry_on_rate_limit',
@@ -59,4 +63,10 @@ __all__ = [
     'render_technical_indicators',
     'calculate_portfolio_value',
     'render_portfolio_summary',
+    'AlertType',
+    'check_alert_triggered',
+    'check_user_alerts',
+    'render_alert_form',
+    'render_alerts_list',
+    'render_triggered_alerts',
 ]
