@@ -34,16 +34,10 @@ def fetch_news(ticker_symbol: str, max_items: int = 10) -> List[Dict]:
 
         articles = []
         for item in news[:max_items]:
-            article = {
-                'title': item.get('title', 'No title'),
-                'publisher': item.get('publisher', 'Unknown'),
-                'link': item.get('link', '#'),
-                'published': _format_timestamp(item.get('providerPublishTime')),
-                'type': item.get('type', 'article'),
-                'thumbnail': _get_thumbnail(item),
-                'related_tickers': item.get('relatedTickers', [])
-            }
-            articles.append(article)
+            # Handle both old and new yfinance API formats
+            article = _parse_news_item(item)
+            if article:
+                articles.append(article)
 
         log_api_call("yfinance_news", ticker=ticker_symbol, success=True)
         return articles
@@ -52,6 +46,98 @@ def fetch_news(ticker_symbol: str, max_items: int = 10) -> List[Dict]:
         log_error(e, f"Error fetching news for {ticker_symbol}")
         log_api_call("yfinance_news", ticker=ticker_symbol, success=False)
         return []
+
+
+def _parse_news_item(item: Dict) -> Optional[Dict]:
+    """
+    Parse news item from yfinance, handling both old and new API formats.
+
+    New format (yfinance >= 0.2.37):
+    - item['content']['title']
+    - item['content']['provider']['displayName']
+    - item['content']['clickThroughUrl']['url']
+    - item['content']['pubDate']
+
+    Old format:
+    - item['title']
+    - item['publisher']
+    - item['link']
+    - item['providerPublishTime']
+    """
+    try:
+        # Check if it's the new nested format
+        if 'content' in item:
+            content = item.get('content', {})
+            title = content.get('title', '')
+
+            # Provider can be nested
+            provider = content.get('provider', {})
+            if isinstance(provider, dict):
+                publisher = provider.get('displayName', 'Unknown')
+            else:
+                publisher = str(provider) if provider else 'Unknown'
+
+            # URL can be nested
+            click_url = content.get('clickThroughUrl', {})
+            if isinstance(click_url, dict):
+                link = click_url.get('url', '#')
+            else:
+                link = str(click_url) if click_url else '#'
+
+            # Also try canonical URL
+            if link == '#':
+                link = content.get('canonicalUrl', {})
+                if isinstance(link, dict):
+                    link = link.get('url', '#')
+
+            # Publication date
+            pub_date = content.get('pubDate', '')
+            published = _format_date_string(pub_date) if pub_date else 'Unknown date'
+
+            # Thumbnail from new format
+            thumbnail = None
+            thumb_data = content.get('thumbnail', {})
+            if thumb_data:
+                resolutions = thumb_data.get('resolutions', [])
+                if resolutions:
+                    for res in resolutions:
+                        if res.get('width', 0) >= 100:
+                            thumbnail = res.get('url')
+                            break
+                    if not thumbnail and resolutions:
+                        thumbnail = resolutions[0].get('url')
+
+            # Related tickers
+            related = []
+            finance = content.get('finance', {})
+            if finance:
+                stock_tickers = finance.get('stockTickers', [])
+                related = [t.get('symbol', '') for t in stock_tickers if t.get('symbol')]
+
+            return {
+                'title': title or 'No title',
+                'publisher': publisher,
+                'link': link,
+                'published': published,
+                'type': content.get('contentType', 'article'),
+                'thumbnail': thumbnail,
+                'related_tickers': related
+            }
+
+        # Old format fallback
+        return {
+            'title': item.get('title', 'No title'),
+            'publisher': item.get('publisher', 'Unknown'),
+            'link': item.get('link', '#'),
+            'published': _format_timestamp(item.get('providerPublishTime')),
+            'type': item.get('type', 'article'),
+            'thumbnail': _get_thumbnail(item),
+            'related_tickers': item.get('relatedTickers', [])
+        }
+
+    except Exception as e:
+        log_warning(f"Failed to parse news item: {e}")
+        return None
 
 
 def _format_timestamp(timestamp: Optional[int]) -> str:
@@ -63,6 +149,22 @@ def _format_timestamp(timestamp: Optional[int]) -> str:
         return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
         return "Unknown date"
+
+
+def _format_date_string(date_str: str) -> str:
+    """Format ISO date string to readable format."""
+    if not date_str:
+        return "Unknown date"
+    try:
+        # Handle ISO format: 2024-01-15T10:30:00Z
+        if 'T' in date_str:
+            date_str = date_str.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(date_str)
+            return dt.strftime("%Y-%m-%d %H:%M")
+        # Already formatted
+        return date_str
+    except Exception:
+        return date_str[:16] if len(date_str) > 16 else date_str
 
 
 def _get_thumbnail(item: Dict) -> Optional[str]:
