@@ -1849,10 +1849,14 @@ def main():
     # Check historical periods limit based on user tier
     current_user_periods = st.session_state.get("user")
     periods_limit = None  # None = unlimited
+    is_guest = False
 
     if current_user_periods and SupabaseAuth.is_configured():
         periods_limit = SupabaseAuth.get_historical_periods_limit(current_user_periods.id)
-    # Not logged in - allow all periods (guest mode)
+    else:
+        # Guest users get Free tier limits
+        is_guest = True
+        periods_limit = SupabaseAuth.TIER_LIMITS['free']['historical_periods']
 
     # Apply limit to available periods if needed
     if periods_limit is not None and available_periods and len(available_periods) > periods_limit:
@@ -1880,7 +1884,10 @@ def main():
             )
             # Show upgrade hint if periods are limited
             if periods_limited:
-                st.caption(f"🔒 Free tier: {periods_limit} periods. Upgrade for more.")
+                if is_guest:
+                    st.caption(f"🔒 Guest: {periods_limit} periods. Login for more.")
+                else:
+                    st.caption(f"🔒 Free tier: {periods_limit} periods. Upgrade for more.")
         else:
             selected_period_index = 0
             st.info("No historical periods available")
@@ -2378,16 +2385,16 @@ def main():
                 with dl_col1:
                     # Check export permission for PDF
                     current_user_for_export = st.session_state.get("user")
-                    can_export_pdf = True
-                    export_tier = "free"
+                    can_export_pdf = False
+                    is_guest_export = False
 
                     if current_user_for_export and SupabaseAuth.is_configured():
                         export_info = SupabaseAuth.can_export(current_user_for_export.id)
                         can_export_pdf = export_info.get('allowed', True)
-                        export_tier = export_info.get('tier', 'free')
-                    elif not current_user_for_export:
-                        # Not logged in - allow export (guest mode)
-                        can_export_pdf = True
+                    else:
+                        # Guest users get Free tier limits (no export)
+                        is_guest_export = True
+                        can_export_pdf = SupabaseAuth.TIER_LIMITS['free']['export_enabled']
 
                     if can_export_pdf:
                         st.download_button(
@@ -2399,7 +2406,10 @@ def main():
                         )
                     else:
                         st.button("📄 Download PDF Report", disabled=True, use_container_width=True)
-                        st.caption("🔒 Upgrade to Pro to export PDFs")
+                        if is_guest_export:
+                            st.caption("🔒 Login & upgrade to Pro to export PDFs")
+                        else:
+                            st.caption("🔒 Upgrade to Pro to export PDFs")
                 with dl_col2:
                     # Save to account (if logged in)
                     current_user = st.session_state.get("user")
@@ -2459,17 +2469,24 @@ def main():
 
         # Check export permission for Excel
         current_user_excel = st.session_state.get("user")
-        can_export_excel = True
+        can_export_excel = False
+        is_guest_excel = False
 
         if current_user_excel and SupabaseAuth.is_configured():
             export_info_excel = SupabaseAuth.can_export(current_user_excel.id)
             can_export_excel = export_info_excel.get('allowed', True)
-        # Not logged in - allow export (guest mode)
+        else:
+            # Guest users get Free tier limits (no export)
+            is_guest_excel = True
+            can_export_excel = SupabaseAuth.TIER_LIMITS['free']['export_enabled']
 
         if can_export_excel:
             st.write("Download raw financial data for further analysis in Excel.")
         else:
-            st.warning("🔒 Excel export is available for Pro and Enterprise tiers. Upgrade to export data.")
+            if is_guest_excel:
+                st.warning("🔒 Excel export requires Pro tier. Login & upgrade to export data.")
+            else:
+                st.warning("🔒 Excel export is available for Pro and Enterprise tiers. Upgrade to export data.")
 
         export_col1, export_col2, export_col3 = st.columns(3)
 
