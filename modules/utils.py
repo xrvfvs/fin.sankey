@@ -42,17 +42,24 @@ def convert_multiple_df_to_excel(dfs_dict):
     """Convert multiple DataFrames to a single Excel file with multiple sheets."""
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        sheets_written = 0
         for sheet_name, df in dfs_dict.items():
             if df is not None and not df.empty:
                 df.to_excel(writer, sheet_name=sheet_name[:31])  # Excel max sheet name = 31 chars
+                sheets_written += 1
+        # If no sheets were written, create an empty placeholder sheet
+        if sheets_written == 0:
+            pd.DataFrame().to_excel(writer, sheet_name="Empty")
     return output.getvalue()
 
 
 def format_large_number(num):
-    """Format large numbers with K, M, B suffixes."""
+    """Format large numbers with K, M, B, T suffixes."""
     if num is None:
         return "N/A"
-    if abs(num) >= 1e9:
+    if abs(num) >= 1e12:
+        return f"${num/1e12:.2f}T"
+    elif abs(num) >= 1e9:
         return f"${num/1e9:.2f}B"
     elif abs(num) >= 1e6:
         return f"${num/1e6:.2f}M"

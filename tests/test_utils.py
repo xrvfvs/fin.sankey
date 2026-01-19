@@ -114,9 +114,10 @@ class TestConvertMultipleDfToExcel:
         assert isinstance(result, bytes)
 
     def test_empty_dict(self):
-        """Test conversion with empty dictionary."""
+        """Test conversion with empty dictionary creates placeholder sheet."""
         result = convert_multiple_df_to_excel({})
         assert isinstance(result, bytes)
+        assert len(result) > 0
 
 
 class TestFormatLargeNumber:

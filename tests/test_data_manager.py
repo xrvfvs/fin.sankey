@@ -75,7 +75,8 @@ class TestExtractSankeyData:
             revenue_mod=1.1  # +10%
         )
 
-        assert data['Revenue'] == 110_000_000_000  # 100B * 1.1
+        # Use pytest.approx for float comparison
+        assert data['Revenue'] == pytest.approx(110_000_000_000, rel=1e-9)  # 100B * 1.1
 
     def test_cost_modifier(self, sample_income_stmt):
         """Test cost modifier works correctly."""
