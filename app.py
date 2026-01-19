@@ -68,6 +68,36 @@ class SupabaseAuth:
 
     _client = None
 
+    # --- TIER LIMITS CONFIGURATION ---
+    TIER_LIMITS = {
+        'free': {
+            'ai_reports_per_month': 3,
+            'watchlist_max': 5,
+            'saved_analyses_max': 5,
+            'export_enabled': False,
+            'historical_periods': 2,  # Only last 2 periods
+        },
+        'pro': {
+            'ai_reports_per_month': 30,
+            'watchlist_max': 25,
+            'saved_analyses_max': 50,
+            'export_enabled': True,
+            'historical_periods': None,  # All periods
+        },
+        'enterprise': {
+            'ai_reports_per_month': None,  # Unlimited
+            'watchlist_max': None,  # Unlimited
+            'saved_analyses_max': None,  # Unlimited
+            'export_enabled': True,
+            'historical_periods': None,  # All periods
+        }
+    }
+
+    @classmethod
+    def get_tier_limits(cls, tier: str) -> dict:
+        """Get limits for a specific tier."""
+        return cls.TIER_LIMITS.get(tier, cls.TIER_LIMITS['free'])
+
     @classmethod
     def get_client(cls) -> Client:
         """Get or create Supabase client singleton."""
@@ -262,6 +292,145 @@ class SupabaseAuth:
             return response.data if response.data else None
         except Exception:
             return None
+
+    # --- TIER LIMIT CHECKING METHODS ---
+    @classmethod
+    def get_user_tier(cls, user_id: str) -> str:
+        """Get user's subscription tier."""
+        profile = cls.get_user_profile(user_id)
+        if profile:
+            return profile.get('subscription_tier', 'free')
+        return 'free'
+
+    @classmethod
+    def get_user_usage(cls, user_id: str) -> dict:
+        """Get user's current usage stats."""
+        profile = cls.get_user_profile(user_id)
+        if not profile:
+            return {'ai_reports_used': 0, 'tier': 'free'}
+
+        return {
+            'tier': profile.get('subscription_tier', 'free'),
+            'ai_reports_used': profile.get('ai_reports_used', 0),
+            'ai_reports_reset_date': profile.get('ai_reports_reset_date'),
+        }
+
+    @classmethod
+    def can_generate_ai_report(cls, user_id: str) -> dict:
+        """Check if user can generate an AI report. Returns dict with 'allowed' and 'message'."""
+        usage = cls.get_user_usage(user_id)
+        tier = usage.get('tier', 'free')
+        limits = cls.get_tier_limits(tier)
+
+        ai_limit = limits.get('ai_reports_per_month')
+        ai_used = usage.get('ai_reports_used', 0)
+
+        # None means unlimited
+        if ai_limit is None:
+            return {'allowed': True, 'used': ai_used, 'limit': None, 'tier': tier}
+
+        if ai_used >= ai_limit:
+            return {
+                'allowed': False,
+                'used': ai_used,
+                'limit': ai_limit,
+                'tier': tier,
+                'message': f"Limit reached ({ai_used}/{ai_limit}). Upgrade to Pro for more reports!"
+            }
+
+        return {'allowed': True, 'used': ai_used, 'limit': ai_limit, 'tier': tier}
+
+    @classmethod
+    def increment_ai_report_usage(cls, user_id: str) -> bool:
+        """Increment the AI report usage counter."""
+        client = cls.get_client()
+        if not client:
+            return False
+        try:
+            cls.restore_session()
+            # Get current usage
+            profile = cls.get_user_profile(user_id)
+            if not profile:
+                return False
+
+            current_count = profile.get('ai_reports_used', 0)
+
+            # Update counter
+            client.table("user_profiles").update({
+                "ai_reports_used": current_count + 1,
+                "last_activity": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq("id", user_id).execute()
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def can_add_to_watchlist(cls, user_id: str) -> dict:
+        """Check if user can add more items to watchlist."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        watchlist = cls.get_watchlist(user_id)
+        current_count = len(watchlist)
+
+        max_limit = limits.get('watchlist_max')
+
+        if max_limit is None:
+            return {'allowed': True, 'used': current_count, 'limit': None, 'tier': tier}
+
+        if current_count >= max_limit:
+            return {
+                'allowed': False,
+                'used': current_count,
+                'limit': max_limit,
+                'tier': tier,
+                'message': f"Watchlist full ({current_count}/{max_limit}). Upgrade to Pro!"
+            }
+
+        return {'allowed': True, 'used': current_count, 'limit': max_limit, 'tier': tier}
+
+    @classmethod
+    def can_save_analysis(cls, user_id: str) -> dict:
+        """Check if user can save more analyses."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        analyses = cls.get_saved_analyses(user_id)
+        current_count = len(analyses)
+
+        max_limit = limits.get('saved_analyses_max')
+
+        if max_limit is None:
+            return {'allowed': True, 'used': current_count, 'limit': None, 'tier': tier}
+
+        if current_count >= max_limit:
+            return {
+                'allowed': False,
+                'used': current_count,
+                'limit': max_limit,
+                'tier': tier,
+                'message': f"Saved analyses limit reached ({current_count}/{max_limit}). Upgrade to Pro!"
+            }
+
+        return {'allowed': True, 'used': current_count, 'limit': max_limit, 'tier': tier}
+
+    @classmethod
+    def can_export(cls, user_id: str) -> dict:
+        """Check if user can export to Excel/PDF."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        allowed = limits.get('export_enabled', False)
+
+        return {
+            'allowed': allowed,
+            'tier': tier,
+            'message': None if allowed else "Export available in Pro tier. Upgrade to unlock!"
+        }
+
+    @classmethod
+    def get_historical_periods_limit(cls, user_id: str) -> int:
+        """Get how many historical periods user can access. None = unlimited."""
+        tier = cls.get_user_tier(user_id)
+        limits = cls.get_tier_limits(tier)
+        return limits.get('historical_periods')
 
     # --- GLOBAL REPORTS CACHE METHODS ---
     GLOBAL_CACHE_TTL_DAYS = 7  # Reports valid for 7 days
@@ -1607,6 +1776,8 @@ def main():
         # Add to watchlist button (if logged in)
         if current_user and SupabaseAuth.is_configured():
             user_watchlist_tickers = [w['ticker'] for w in SupabaseAuth.get_watchlist(current_user.id)]
+            watchlist_limit = SupabaseAuth.can_add_to_watchlist(current_user.id)
+
             if ticker_input in user_watchlist_tickers:
                 if st.button("Remove from Watchlist", key="remove_wl"):
                     if SupabaseAuth.remove_from_watchlist(current_user.id, ticker_input):
@@ -1615,7 +1786,12 @@ def main():
                     else:
                         st.error("Failed to remove from watchlist")
             else:
-                if st.button("Add to Watchlist", key="add_wl"):
+                # Check watchlist limit
+                can_add = watchlist_limit.get('allowed', True)
+                if not can_add:
+                    st.warning(f"⚠️ {watchlist_limit.get('message', 'Watchlist full')}")
+
+                if st.button("Add to Watchlist", key="add_wl", disabled=not can_add):
                     result = SupabaseAuth.add_to_watchlist(current_user.id, ticker_input, company_name)
                     if result.get("success"):
                         st.success(f"Added {ticker_input} to watchlist!")
@@ -1670,12 +1846,28 @@ def main():
     # Get available periods for dropdown
     available_periods = DataManager.get_available_periods(data_dict['income_stmt'])
 
+    # Check historical periods limit based on user tier
+    current_user_periods = st.session_state.get("user")
+    periods_limit = None  # None = unlimited
+
+    if current_user_periods and SupabaseAuth.is_configured():
+        periods_limit = SupabaseAuth.get_historical_periods_limit(current_user_periods.id)
+    # Not logged in - allow all periods (guest mode)
+
+    # Apply limit to available periods if needed
+    if periods_limit is not None and available_periods and len(available_periods) > periods_limit:
+        limited_periods = available_periods[:periods_limit]
+        periods_limited = True
+    else:
+        limited_periods = available_periods
+        periods_limited = False
+
     # Add period selector to sidebar
     with st.sidebar:
         st.markdown("---")
         st.subheader("3. Reporting Period")
-        if available_periods:
-            period_options = [p[0] for p in available_periods]
+        if limited_periods:
+            period_options = [p[0] for p in limited_periods]
             selected_period_name = st.selectbox(
                 "Select period for analysis:",
                 options=period_options,
@@ -1684,8 +1876,11 @@ def main():
             )
             # Find the index for the selected period
             selected_period_index = next(
-                (p[1] for p in available_periods if p[0] == selected_period_name), 0
+                (p[1] for p in limited_periods if p[0] == selected_period_name), 0
             )
+            # Show upgrade hint if periods are limited
+            if periods_limited:
+                st.caption(f"🔒 Free tier: {periods_limit} periods. Upgrade for more.")
         else:
             selected_period_index = 0
             st.info("No historical periods available")
@@ -2047,6 +2242,28 @@ def main():
                 cache_minutes = int((local_cache_age - cache_hours) * 60)
                 age_info = f"{cache_hours}h {cache_minutes}m old"
 
+            # --- CHECK AI REPORT LIMIT ---
+            ai_limit_info = None
+            can_generate = True
+
+            if current_user and SupabaseAuth.is_configured():
+                ai_limit_info = SupabaseAuth.can_generate_ai_report(current_user.id)
+                can_generate = ai_limit_info.get('allowed', True)
+
+                # Show usage info
+                used = ai_limit_info.get('used', 0)
+                limit = ai_limit_info.get('limit')
+                tier = ai_limit_info.get('tier', 'free')
+
+                if limit is not None:
+                    remaining = limit - used
+                    if remaining > 0:
+                        st.caption(f"📊 AI Reports: {used}/{limit} used this month ({tier.upper()} tier)")
+                    else:
+                        st.warning(f"⚠️ {ai_limit_info.get('message', 'Limit reached')}")
+                else:
+                    st.caption(f"📊 AI Reports: Unlimited ({tier.upper()} tier)")
+
             # Wyświetlenie informacji o cache
             if cached_report:
                 if cache_source == "global":
@@ -2060,9 +2277,9 @@ def main():
                 with btn_col1:
                     use_cache_btn = st.button("📂 Load Cached Report", type="secondary")
                 with btn_col2:
-                    generate_btn = st.button("🚀 Generate New Report", type="primary")
+                    generate_btn = st.button("🚀 Generate New Report", type="primary", disabled=not can_generate)
             else:
-                generate_btn = st.button("🚀 Generate Live Report", type="primary")
+                generate_btn = st.button("🚀 Generate Live Report", type="primary", disabled=not can_generate)
                 use_cache_btn = False
 
             # Session State
@@ -2107,6 +2324,9 @@ def main():
                                 st.toast("✅ Report saved to global cache!", icon="🌐")
                             else:
                                 st.toast("✅ Report saved locally", icon="💾")
+
+                            # INCREMENT AI REPORT USAGE COUNTER
+                            SupabaseAuth.increment_ai_report_usage(current_user.id)
             
             # --- WYŚWIETLANIE WYNIKU (JEŚLI ISTNIEJE W SESJI) ---
             if "ai_report_data" in st.session_state and st.session_state["ai_report_data"]:
@@ -2150,18 +2370,42 @@ def main():
                 
                 dl_col1, dl_col2 = st.columns(2)
                 with dl_col1:
-                    st.download_button(
-                        label="📄 Download PDF Report",
-                        data=pdf_bytes,
-                        file_name=f"{ticker_input}_Perplexity_Report.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+                    # Check export permission for PDF
+                    current_user_for_export = st.session_state.get("user")
+                    can_export_pdf = True
+                    export_tier = "free"
+
+                    if current_user_for_export and SupabaseAuth.is_configured():
+                        export_info = SupabaseAuth.can_export(current_user_for_export.id)
+                        can_export_pdf = export_info.get('allowed', True)
+                        export_tier = export_info.get('tier', 'free')
+                    elif not current_user_for_export:
+                        # Not logged in - allow export (guest mode)
+                        can_export_pdf = True
+
+                    if can_export_pdf:
+                        st.download_button(
+                            label="📄 Download PDF Report",
+                            data=pdf_bytes,
+                            file_name=f"{ticker_input}_Perplexity_Report.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    else:
+                        st.button("📄 Download PDF Report", disabled=True, use_container_width=True)
+                        st.caption("🔒 Upgrade to Pro to export PDFs")
                 with dl_col2:
                     # Save to account (if logged in)
                     current_user = st.session_state.get("user")
                     if current_user and SupabaseAuth.is_configured():
-                        if st.button("💾 Save to My Analyses", use_container_width=True, key="save_analysis"):
+                        # Check saved analyses limit
+                        save_limit = SupabaseAuth.can_save_analysis(current_user.id)
+                        can_save = save_limit.get('allowed', True)
+
+                        if not can_save:
+                            st.warning(f"⚠️ {save_limit.get('message', 'Limit reached')}")
+
+                        if st.button("💾 Save to My Analyses", use_container_width=True, key="save_analysis", disabled=not can_save):
                             financial_data = {
                                 "revenue": sankey_vals.get('Revenue', 0),
                                 "net_income": sankey_vals.get('Net Income', 0),
@@ -2206,7 +2450,20 @@ def main():
         # --- EXPORT DATA SECTION ---
         st.divider()
         st.subheader("📥 Export Financial Data")
-        st.write("Download raw financial data for further analysis in Excel.")
+
+        # Check export permission for Excel
+        current_user_excel = st.session_state.get("user")
+        can_export_excel = True
+
+        if current_user_excel and SupabaseAuth.is_configured():
+            export_info_excel = SupabaseAuth.can_export(current_user_excel.id)
+            can_export_excel = export_info_excel.get('allowed', True)
+        # Not logged in - allow export (guest mode)
+
+        if can_export_excel:
+            st.write("Download raw financial data for further analysis in Excel.")
+        else:
+            st.warning("🔒 Excel export is available for Pro and Enterprise tiers. Upgrade to export data.")
 
         export_col1, export_col2, export_col3 = st.columns(3)
 
@@ -2214,7 +2471,9 @@ def main():
         balance_sheet = data_dict['balance_sheet']
 
         with export_col1:
-            if income_stmt is not None and not income_stmt.empty:
+            if not can_export_excel:
+                st.button("📊 Income Statement", disabled=True, help="Upgrade to Pro to export")
+            elif income_stmt is not None and not income_stmt.empty:
                 income_excel = convert_df_to_excel(income_stmt.T, "Income Statement")
                 st.download_button(
                     label="📊 Income Statement",
@@ -2227,7 +2486,9 @@ def main():
                 st.button("📊 Income Statement", disabled=True, help="No data available")
 
         with export_col2:
-            if balance_sheet is not None and not balance_sheet.empty:
+            if not can_export_excel:
+                st.button("📋 Balance Sheet", disabled=True, help="Upgrade to Pro to export")
+            elif balance_sheet is not None and not balance_sheet.empty:
                 balance_excel = convert_df_to_excel(balance_sheet.T, "Balance Sheet")
                 st.download_button(
                     label="📋 Balance Sheet",
@@ -2240,23 +2501,26 @@ def main():
                 st.button("📋 Balance Sheet", disabled=True, help="No data available")
 
         with export_col3:
-            # Export all data in one file with multiple sheets
-            all_data = {
-                "Income Statement": income_stmt.T if income_stmt is not None and not income_stmt.empty else pd.DataFrame(),
-                "Balance Sheet": balance_sheet.T if balance_sheet is not None and not balance_sheet.empty else pd.DataFrame(),
-                "Insider Trading": insider_df if not insider_df.empty else pd.DataFrame(),
-                "Recommendations": rec_df if not rec_df.empty else pd.DataFrame()
-            }
-            # Filter out empty dataframes
-            all_data = {k: v for k, v in all_data.items() if not v.empty}
+            if not can_export_excel:
+                st.button("📦 All Data (Multi-sheet)", disabled=True, help="Upgrade to Pro to export")
+            else:
+                # Export all data in one file with multiple sheets
+                all_data = {
+                    "Income Statement": income_stmt.T if income_stmt is not None and not income_stmt.empty else pd.DataFrame(),
+                    "Balance Sheet": balance_sheet.T if balance_sheet is not None and not balance_sheet.empty else pd.DataFrame(),
+                    "Insider Trading": insider_df if not insider_df.empty else pd.DataFrame(),
+                    "Recommendations": rec_df if not rec_df.empty else pd.DataFrame()
+                }
+                # Filter out empty dataframes
+                all_data = {k: v for k, v in all_data.items() if not v.empty}
 
-            if all_data:
-                all_excel = convert_multiple_df_to_excel(all_data)
-                st.download_button(
-                    label="📦 All Data (Multi-sheet)",
-                    data=all_excel,
-                    file_name=f"{ticker_input}_all_financial_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                if all_data:
+                    all_excel = convert_multiple_df_to_excel(all_data)
+                    st.download_button(
+                        label="📦 All Data (Multi-sheet)",
+                        data=all_excel,
+                        file_name=f"{ticker_input}_all_financial_data.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     help="Download all available data in one Excel file"
                 )
             else:
