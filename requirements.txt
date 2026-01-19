@@ -6,3 +6,4 @@ fpdf2
 openai
 openpyxl
 supabase
+pytest

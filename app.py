@@ -15,6 +15,8 @@ from modules.auth import SupabaseAuth
 from modules.data_manager import DataManager
 from modules.visualizer import Visualizer
 from modules.reports import ReportGenerator
+from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_current_theme
+from modules.i18n import init_language, t, render_language_selector
 
 
 # --- PAGE CONFIGURATION ---
@@ -28,8 +30,15 @@ st.set_page_config(
 
 # --- MAIN APPLICATION LOGIC ---
 def main():
-    st.title("🧩 fin.sankey | Financial Flow Visualizer")
-    st.markdown("Cash flow visualization for NASDAQ/S&P500 companies")
+    # Initialize theme and language
+    init_theme()
+    init_language()
+
+    # Apply theme CSS
+    apply_theme_css()
+
+    st.title(t('app_title'))
+    st.markdown(t('app_subtitle'))
 
     # --- STATE MANAGEMENT (SESSION STATE) ---
     # 1. State for Main Ticker
@@ -79,7 +88,7 @@ def main():
                 st.markdown("---")
             else:
                 # Login/Register forms
-                auth_tab1, auth_tab2 = st.tabs(["Login", "Register"])
+                auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
 
                 with auth_tab1:
                     with st.form("login_form"):
@@ -122,13 +131,21 @@ def main():
 
                 st.markdown("---")
 
-        st.header("Configuration")
+        # --- SETTINGS SECTION (Theme & Language) ---
+        with st.expander(t('settings'), expanded=False):
+            render_language_selector()
+            st.markdown("---")
+            render_theme_toggle()
+
+        st.markdown("---")
+
+        st.header(t('configuration'))
 
         # Get ticker list
         tickers_list = DataManager.get_tickers_list()
 
         # --- MAIN SECTION ---
-        st.subheader("1. Main Company")
+        st.subheader(t('main_company'))
 
         # Show user's watchlist if logged in
         current_user = st.session_state.get("user")
@@ -136,9 +153,9 @@ def main():
             watchlist = SupabaseAuth.get_watchlist(current_user.id)
             if watchlist:
                 watchlist_tickers = [f"{w['ticker']} | {w.get('company_name', '')}" for w in watchlist]
-                st.caption("Your Watchlist:")
+                st.caption(t('your_watchlist'))
                 selected_from_watchlist = st.selectbox(
-                    "Quick select from watchlist:",
+                    t('quick_select'),
                     options=[""] + watchlist_tickers,
                     key="watchlist_select"
                 )
@@ -295,7 +312,7 @@ def main():
     info = data_dict.get("info", {}) or {}
 
     # --- MAIN TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Viz & Benchmark", "📈 Metrics Dashboard", "🤖 AI Report", "📑 Extra Data"])
+    tab1, tab2, tab3, tab4 = st.tabs([t('tab_viz'), t('tab_metrics'), t('tab_ai_report'), t('tab_extra')])
 
     with tab1:
         render_tab_visualization(data_mgr, data_dict, ticker_input, sankey_vals, rev_change, cost_change,
