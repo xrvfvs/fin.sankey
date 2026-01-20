@@ -548,6 +548,44 @@ TRANSLATIONS = {
         'en': 'Alerts limit reached ({used}/{limit}). Upgrade to Pro for more alerts!',
         'pl': 'Limit alertów osiągnięty ({used}/{limit}). Ulepsz do Pro, aby dodać więcej alertów!',
     },
+
+    # --- Email Notifications ---
+    'email_notifications': {
+        'en': 'Email Notifications',
+        'pl': 'Powiadomienia Email',
+    },
+    'email_not_configured': {
+        'en': 'Email notifications are not configured. Contact administrator.',
+        'pl': 'Powiadomienia email nie są skonfigurowane. Skontaktuj się z administratorem.',
+    },
+    'email_configured': {
+        'en': 'Email configured',
+        'pl': 'Email skonfigurowany',
+    },
+    'receive_alert_emails': {
+        'en': 'Receive alert emails',
+        'pl': 'Otrzymuj alerty emailem',
+    },
+    'receive_daily_summary': {
+        'en': 'Receive daily summary',
+        'pl': 'Otrzymuj dzienne podsumowanie',
+    },
+    'send_test_email': {
+        'en': 'Send Test Email',
+        'pl': 'Wyślij Email Testowy',
+    },
+    'test_email_sent': {
+        'en': 'Test email sent to {email}',
+        'pl': 'Email testowy wysłany na {email}',
+    },
+    'test_email_failed': {
+        'en': 'Failed to send test email',
+        'pl': 'Nie udało się wysłać emaila testowego',
+    },
+    'login_for_test_email': {
+        'en': 'Please log in to send test email',
+        'pl': 'Zaloguj się, aby wysłać email testowy',
+    },
 }
 
 

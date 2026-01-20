@@ -27,6 +27,10 @@ from modules.alerts import (
     AlertType, check_alert_triggered, check_user_alerts,
     render_alert_form, render_alerts_list, render_triggered_alerts
 )
+from modules.notifications import (
+    EmailNotifier, get_notifier, send_alert_notification,
+    send_daily_summary, check_and_notify_alerts, render_email_settings
+)
 
 __all__ = [
     'retry_on_rate_limit',
@@ -69,4 +73,10 @@ __all__ = [
     'render_alert_form',
     'render_alerts_list',
     'render_triggered_alerts',
+    'EmailNotifier',
+    'get_notifier',
+    'send_alert_notification',
+    'send_daily_summary',
+    'check_and_notify_alerts',
+    'render_email_settings',
 ]

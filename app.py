@@ -23,6 +23,7 @@ from modules.alerts import (
     AlertType, ALERT_TYPE_LABELS, get_current_price,
     check_alert_triggered, render_triggered_alerts
 )
+from modules.notifications import render_email_settings
 
 
 # --- PAGE CONFIGURATION ---
@@ -1212,6 +1213,10 @@ def render_tab_portfolio(ticker_input: str):
         st.markdown("---")
     else:
         st.info(t('no_alerts'))
+
+    # --- EMAIL NOTIFICATIONS SECTION ---
+    st.divider()
+    render_email_settings()
 
 
 if __name__ == "__main__":
