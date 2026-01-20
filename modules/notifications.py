@@ -5,7 +5,7 @@ Email notifications module for price alerts.
 Supports multiple email providers:
 - SMTP (Gmail, Outlook, custom)
 - Resend API
-- SendGrid API (future)
+- SendGrid API
 """
 
 import smtplib
@@ -171,7 +171,9 @@ class EmailNotifier:
         """Detect which email provider is configured."""
         try:
             if 'email' in st.secrets:
-                if 'resend_api_key' in st.secrets['email']:
+                if 'sendgrid_api_key' in st.secrets['email']:
+                    return 'sendgrid'
+                elif 'resend_api_key' in st.secrets['email']:
                     return 'resend'
                 elif 'smtp_server' in st.secrets['email']:
                     return 'smtp'
@@ -199,6 +201,8 @@ class EmailNotifier:
             return self._send_smtp(to_email, subject, html_body)
         elif self.provider == 'resend':
             return self._send_resend(to_email, subject, html_body)
+        elif self.provider == 'sendgrid':
+            return self._send_sendgrid(to_email, subject, html_body)
         else:
             log_warning("Email notifications not configured")
             return False
@@ -272,6 +276,41 @@ class EmailNotifier:
             return False
         except Exception as e:
             log_error(e, f"Failed to send Resend email to {to_email}")
+            return False
+
+    def _send_sendgrid(self, to_email: str, subject: str, html_body: str) -> bool:
+        """Send email via SendGrid API."""
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail, Email, To, Content
+
+            config = st.secrets['email']
+            api_key = config['sendgrid_api_key']
+            from_email = config.get('from_email', 'alerts@fin-sankey.com')
+            from_name = config.get('from_name', 'fin.sankey Alerts')
+
+            message = Mail(
+                from_email=Email(from_email, from_name),
+                to_emails=To(to_email),
+                subject=subject,
+                html_content=Content("text/html", html_body)
+            )
+
+            sg = SendGridAPIClient(api_key)
+            response = sg.send(message)
+
+            if response.status_code in [200, 201, 202]:
+                log_info(f"Email sent to {to_email} via SendGrid")
+                return True
+            else:
+                log_warning(f"SendGrid API error: status {response.status_code}")
+                return False
+
+        except ImportError:
+            log_warning("sendgrid library required for SendGrid API. Install with: pip install sendgrid")
+            return False
+        except Exception as e:
+            log_error(e, f"Failed to send SendGrid email to {to_email}")
             return False
 
 
