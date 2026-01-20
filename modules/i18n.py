@@ -586,7 +586,198 @@ TRANSLATIONS = {
         'en': 'Please log in to send test email',
         'pl': 'Zaloguj się, aby wysłać email testowy',
     },
+
+    # --- Executive Summary Dashboard ---
+    'executive_summary': {
+        'en': 'Executive Summary',
+        'pl': 'Podsumowanie Wykonawcze',
+    },
+    'company_overview': {
+        'en': 'Company Overview',
+        'pl': 'Przegląd Spółki',
+    },
+    'quick_stats': {
+        'en': 'Quick Stats',
+        'pl': 'Szybkie Statystyki',
+    },
+    'market_position': {
+        'en': 'Market Position',
+        'pl': 'Pozycja Rynkowa',
+    },
+    'health_score': {
+        'en': 'Health Score',
+        'pl': 'Ocena Kondycji',
+    },
+    'sector': {
+        'en': 'Sector',
+        'pl': 'Sektor',
+    },
+    'industry': {
+        'en': 'Industry',
+        'pl': 'Branża',
+    },
+    'employees': {
+        'en': 'Employees',
+        'pl': 'Pracownicy',
+    },
+    'founded': {
+        'en': 'Founded',
+        'pl': 'Założona',
+    },
+    'headquarters': {
+        'en': 'Headquarters',
+        'pl': 'Siedziba',
+    },
+    'website': {
+        'en': 'Website',
+        'pl': 'Strona WWW',
+    },
+
+    # --- Cache Status Indicator ---
+    'cache_status': {
+        'en': 'Cache Status',
+        'pl': 'Status Cache',
+    },
+    'cache_fresh': {
+        'en': 'Fresh data',
+        'pl': 'Świeże dane',
+    },
+    'cache_from_cache': {
+        'en': 'From cache',
+        'pl': 'Z cache',
+    },
+    'cache_age': {
+        'en': '{hours}h {minutes}m ago',
+        'pl': '{hours}h {minutes}m temu',
+    },
+    'data_cached': {
+        'en': 'Data cached for faster loading',
+        'pl': 'Dane w cache dla szybszego ładowania',
+    },
+    'last_updated': {
+        'en': 'Last updated',
+        'pl': 'Ostatnia aktualizacja',
+    },
+
+    # --- Data Table ---
+    'search_table': {
+        'en': 'Search in table...',
+        'pl': 'Szukaj w tabeli...',
+    },
+    'rows_per_page': {
+        'en': 'Rows per page',
+        'pl': 'Wierszy na stronę',
+    },
+    'showing_rows': {
+        'en': 'Showing {start}-{end} of {total}',
+        'pl': 'Wyświetlanie {start}-{end} z {total}',
+    },
 }
+
+
+# Metric tooltips with explanations
+METRIC_TOOLTIPS = {
+    'revenue_per_share': {
+        'en': 'Revenue Per Share = Total Revenue / Shares Outstanding. Shows how much revenue the company generates per share. Higher is generally better.',
+        'pl': 'Przychód na Akcję = Całkowite Przychody / Liczba Akcji. Pokazuje ile przychodów firma generuje na jedną akcję. Wyższa wartość jest lepsza.',
+    },
+    'eps': {
+        'en': 'Earnings Per Share (EPS) = Net Income / Shares Outstanding. Shows profit allocated to each share. Key metric for valuation.',
+        'pl': 'Zysk na Akcję (EPS) = Zysk Netto / Liczba Akcji. Pokazuje zysk przypadający na każdą akcję. Kluczowy wskaźnik wyceny.',
+    },
+    'roe': {
+        'en': "Return on Equity (ROE) = Net Income / Shareholders' Equity. Measures profitability relative to shareholders' investment. >15% is typically good.",
+        'pl': 'Zwrot z Kapitału Własnego (ROE) = Zysk Netto / Kapitał Własny. Mierzy rentowność w stosunku do inwestycji akcjonariuszy. >15% jest zwykle dobry.',
+    },
+    'roic': {
+        'en': 'Return on Invested Capital (ROIC) = NOPAT / (Equity + Debt - Cash). Measures how efficiently capital is used. >10% indicates good capital allocation.',
+        'pl': 'Zwrot z Zainwestowanego Kapitału (ROIC) = NOPAT / (Kapitał + Dług - Gotówka). Mierzy efektywność wykorzystania kapitału. >10% wskazuje dobrą alokację.',
+    },
+    'debt_to_equity': {
+        'en': 'Debt to Equity = Total Debt / Total Equity. Shows financial leverage. <1 is conservative, >2 may indicate high risk.',
+        'pl': 'Dług do Kapitału = Całkowity Dług / Kapitał Własny. Pokazuje dźwignię finansową. <1 jest konserwatywny, >2 może wskazywać wysokie ryzyko.',
+    },
+    'book_value': {
+        'en': 'Book Value Per Share = (Assets - Liabilities) / Shares. Represents the net asset value per share. Important for value investors.',
+        'pl': 'Wartość Księgowa na Akcję = (Aktywa - Zobowiązania) / Akcje. Reprezentuje wartość netto aktywów na akcję. Ważne dla inwestorów wartościowych.',
+    },
+    'current_ratio': {
+        'en': 'Current Ratio = Current Assets / Current Liabilities. Measures short-term liquidity. >1.5 is healthy, <1 may signal trouble.',
+        'pl': 'Wskaźnik Płynności Bieżącej = Aktywa Bieżące / Zobowiązania Bieżące. Mierzy płynność krótkoterminową. >1.5 jest zdrowy, <1 może sygnalizować problemy.',
+    },
+    'quick_ratio': {
+        'en': 'Quick Ratio = (Current Assets - Inventory) / Current Liabilities. Stricter liquidity test excluding inventory. >1 is generally safe.',
+        'pl': 'Wskaźnik Szybki = (Aktywa Bieżące - Zapasy) / Zobowiązania Bieżące. Bardziej rygorystyczny test płynności. >1 jest bezpieczny.',
+    },
+    'pe_ratio': {
+        'en': 'Price to Earnings (P/E) = Stock Price / EPS. Shows how much investors pay per dollar of earnings. Compare with industry average.',
+        'pl': 'Cena do Zysku (P/E) = Cena Akcji / EPS. Pokazuje ile inwestorzy płacą za dolara zysku. Porównaj ze średnią branżową.',
+    },
+    'ps_ratio': {
+        'en': 'Price to Sales (P/S) = Market Cap / Revenue. Useful for companies with no earnings. Lower values may indicate undervaluation.',
+        'pl': 'Cena do Sprzedaży (P/S) = Kapitalizacja / Przychody. Przydatny dla firm bez zysków. Niższe wartości mogą wskazywać niedowartościowanie.',
+    },
+    'pb_ratio': {
+        'en': 'Price to Book (P/B) = Stock Price / Book Value. <1 may indicate undervaluation, but check asset quality.',
+        'pl': 'Cena do Wartości Księgowej (P/B) = Cena Akcji / Wartość Księgowa. <1 może wskazywać niedowartościowanie.',
+    },
+    'peg_ratio': {
+        'en': 'PEG Ratio = P/E / Earnings Growth Rate. Accounts for growth. <1 suggests undervaluation relative to growth.',
+        'pl': 'Wskaźnik PEG = P/E / Stopa Wzrostu Zysków. Uwzględnia wzrost. <1 sugeruje niedowartościowanie względem wzrostu.',
+    },
+    'ev_revenue': {
+        'en': 'EV/Revenue = Enterprise Value / Revenue. Compares total company value to sales. Useful for comparing companies with different capital structures.',
+        'pl': 'EV/Przychody = Wartość Przedsiębiorstwa / Przychody. Porównuje całkowitą wartość firmy ze sprzedażą.',
+    },
+    'ev_ebitda': {
+        'en': 'EV/EBITDA = Enterprise Value / EBITDA. Popular valuation metric. Lower values may indicate better value. Industry-specific benchmarks apply.',
+        'pl': 'EV/EBITDA = Wartość Przedsiębiorstwa / EBITDA. Popularny wskaźnik wyceny. Niższe wartości mogą wskazywać lepszą wartość.',
+    },
+    'market_cap': {
+        'en': 'Market Capitalization = Stock Price x Shares Outstanding. Total market value of the company.',
+        'pl': 'Kapitalizacja Rynkowa = Cena Akcji x Liczba Akcji. Całkowita wartość rynkowa firmy.',
+    },
+    'forward_pe': {
+        'en': 'Forward P/E = Stock Price / Expected EPS. Based on analyst estimates for future earnings.',
+        'pl': 'Forward P/E = Cena Akcji / Oczekiwany EPS. Oparty na prognozach analityków dotyczących przyszłych zysków.',
+    },
+    'gross_margin': {
+        'en': 'Gross Margin = (Revenue - COGS) / Revenue. Shows production efficiency. Higher margins indicate pricing power.',
+        'pl': 'Marża Brutto = (Przychody - Koszty Sprzedaży) / Przychody. Pokazuje efektywność produkcji. Wyższe marże wskazują siłę cenową.',
+    },
+    'operating_margin': {
+        'en': 'Operating Margin = Operating Income / Revenue. Shows operational efficiency after all operating expenses.',
+        'pl': 'Marża Operacyjna = Dochód Operacyjny / Przychody. Pokazuje efektywność operacyjną po wszystkich kosztach operacyjnych.',
+    },
+    'profit_margin': {
+        'en': 'Profit Margin = Net Income / Revenue. Shows overall profitability after all expenses and taxes.',
+        'pl': 'Marża Zysku = Zysk Netto / Przychody. Pokazuje ogólną rentowność po wszystkich kosztach i podatkach.',
+    },
+    'beta': {
+        'en': "Beta measures stock volatility vs market. Beta=1 means same volatility as market. >1 is more volatile, <1 is less volatile.",
+        'pl': 'Beta mierzy zmienność akcji względem rynku. Beta=1 oznacza taką samą zmienność jak rynek. >1 jest bardziej zmienny, <1 jest mniej zmienny.',
+    },
+    'debt_to_assets': {
+        'en': 'Debt to Assets = Total Debt / Total Assets. Shows what portion of assets is financed by debt.',
+        'pl': 'Dług do Aktywów = Całkowity Dług / Całkowite Aktywa. Pokazuje jaką część aktywów finansuje dług.',
+    },
+    'assets_per_share': {
+        'en': 'Assets Per Share = Total Assets / Shares Outstanding. Shows asset backing per share.',
+        'pl': 'Aktywa na Akcję = Całkowite Aktywa / Liczba Akcji. Pokazuje pokrycie aktywami na akcję.',
+    },
+    'revenue_per_employee': {
+        'en': 'Revenue Per Employee = Total Revenue / Number of Employees. Measures workforce productivity.',
+        'pl': 'Przychód na Pracownika = Całkowite Przychody / Liczba Pracowników. Mierzy produktywność siły roboczej.',
+    },
+}
+
+
+def get_tooltip(metric_key: str) -> str:
+    """Get tooltip text for a metric in current language."""
+    lang = get_current_language()
+    if metric_key in METRIC_TOOLTIPS:
+        return METRIC_TOOLTIPS[metric_key].get(lang, METRIC_TOOLTIPS[metric_key].get('en', ''))
+    return ''
 
 
 def init_language():

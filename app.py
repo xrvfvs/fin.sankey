@@ -15,8 +15,8 @@ from modules.auth import SupabaseAuth
 from modules.data_manager import DataManager
 from modules.visualizer import Visualizer
 from modules.reports import ReportGenerator
-from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_current_theme
-from modules.i18n import init_language, t, render_language_selector
+from modules.theme import init_theme, apply_theme_css, render_theme_toggle, get_current_theme, get_theme_config
+from modules.i18n import init_language, t, render_language_selector, get_tooltip
 from modules.news import render_news_feed, get_market_sentiment_from_news
 from modules.portfolio import render_technical_indicators, render_portfolio_summary
 from modules.alerts import (
@@ -33,6 +33,228 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+# --- HELPER FUNCTIONS ---
+def render_cache_indicator(is_cached: bool, cache_age_hours: float = None):
+    """Render a cache status indicator."""
+    theme = get_theme_config()
+
+    if is_cached and cache_age_hours is not None:
+        hours = int(cache_age_hours)
+        minutes = int((cache_age_hours - hours) * 60)
+        if cache_age_hours < 1:
+            status_class = "cache-fresh"
+            status_text = t('cache_fresh')
+            icon = "●"
+        elif cache_age_hours < 6:
+            status_class = "cache-cached"
+            status_text = t('cache_age', hours=hours, minutes=minutes)
+            icon = "◐"
+        else:
+            status_class = "cache-stale"
+            status_text = t('cache_age', hours=hours, minutes=minutes)
+            icon = "○"
+    else:
+        status_class = "cache-fresh"
+        status_text = t('cache_fresh')
+        icon = "●"
+
+    st.markdown(
+        f'<span class="cache-indicator {status_class}">{icon} {status_text}</span>',
+        unsafe_allow_html=True
+    )
+
+
+def calculate_health_score(info: dict, sankey_vals: dict) -> tuple:
+    """
+    Calculate a simple financial health score.
+
+    Returns:
+        tuple: (score 0-100, status: 'good'/'warning'/'poor', description)
+    """
+    score = 50  # Start at neutral
+
+    # Check profitability
+    profit_margin = info.get('profitMargins')
+    if profit_margin:
+        if profit_margin > 0.15:
+            score += 15
+        elif profit_margin > 0.05:
+            score += 10
+        elif profit_margin > 0:
+            score += 5
+        else:
+            score -= 10
+
+    # Check ROE
+    roe = info.get('returnOnEquity')
+    if roe:
+        if roe > 0.20:
+            score += 15
+        elif roe > 0.10:
+            score += 10
+        elif roe > 0:
+            score += 5
+        else:
+            score -= 5
+
+    # Check debt levels
+    debt_to_equity = info.get('debtToEquity')
+    if debt_to_equity is not None:
+        if debt_to_equity < 50:
+            score += 10
+        elif debt_to_equity < 100:
+            score += 5
+        elif debt_to_equity > 200:
+            score -= 10
+
+    # Check liquidity
+    current_ratio = info.get('currentRatio')
+    if current_ratio:
+        if current_ratio > 2:
+            score += 10
+        elif current_ratio > 1.5:
+            score += 5
+        elif current_ratio < 1:
+            score -= 10
+
+    # Normalize score
+    score = max(0, min(100, score))
+
+    if score >= 70:
+        return score, 'good', 'Strong Financial Position'
+    elif score >= 40:
+        return score, 'warning', 'Moderate Financial Health'
+    else:
+        return score, 'poor', 'Weak Financial Position'
+
+
+def render_executive_summary(ticker: str, info: dict, sankey_vals: dict):
+    """Render the executive summary dashboard."""
+    theme = get_theme_config()
+
+    # Calculate health score
+    health_score, health_status, health_desc = calculate_health_score(info, sankey_vals)
+
+    # Company info
+    company_name = info.get('shortName', ticker)
+    sector = info.get('sector', 'N/A')
+    industry = info.get('industry', 'N/A')
+    employees = info.get('fullTimeEmployees')
+    market_cap = info.get('marketCap')
+    current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
+    currency = info.get('currency', 'USD')
+
+    # Format market cap
+    if market_cap:
+        if market_cap >= 1e12:
+            market_cap_str = f"${market_cap/1e12:.2f}T"
+        elif market_cap >= 1e9:
+            market_cap_str = f"${market_cap/1e9:.2f}B"
+        elif market_cap >= 1e6:
+            market_cap_str = f"${market_cap/1e6:.0f}M"
+        else:
+            market_cap_str = f"${market_cap:,.0f}"
+    else:
+        market_cap_str = "N/A"
+
+    # Create the summary section
+    st.markdown(f"### {t('executive_summary')}: {company_name}")
+
+    # Main stats row
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.metric(
+            label=t('current_price'),
+            value=f"${current_price:,.2f}" if current_price else "N/A",
+            delta=None
+        )
+
+    with col2:
+        st.metric(
+            label=t('market_position'),
+            value=market_cap_str,
+            help="Total market capitalization"
+        )
+
+    with col3:
+        revenue = sankey_vals.get('Revenue', 0)
+        if revenue >= 1e9:
+            rev_str = f"${revenue/1e9:.1f}B"
+        elif revenue >= 1e6:
+            rev_str = f"${revenue/1e6:.0f}M"
+        else:
+            rev_str = f"${revenue:,.0f}"
+        st.metric(
+            label="Revenue (LTM)",
+            value=rev_str,
+            help="Last Twelve Months Revenue"
+        )
+
+    with col4:
+        net_income = sankey_vals.get('Net Income', 0)
+        if abs(net_income) >= 1e9:
+            ni_str = f"${net_income/1e9:.1f}B"
+        elif abs(net_income) >= 1e6:
+            ni_str = f"${net_income/1e6:.0f}M"
+        else:
+            ni_str = f"${net_income:,.0f}"
+        st.metric(
+            label="Net Income",
+            value=ni_str,
+            delta=f"{(net_income/revenue*100):.1f}% margin" if revenue > 0 else None
+        )
+
+    with col5:
+        # Health score indicator
+        if health_status == 'good':
+            health_color = theme['successColor']
+            health_icon = "Strong"
+        elif health_status == 'warning':
+            health_color = theme['warningColor']
+            health_icon = "Moderate"
+        else:
+            health_color = theme['errorColor']
+            health_icon = "Weak"
+
+        st.metric(
+            label=t('health_score'),
+            value=f"{health_score}/100",
+            delta=health_icon,
+            delta_color="normal" if health_status == 'good' else ("off" if health_status == 'warning' else "inverse")
+        )
+
+    # Company details row
+    with st.expander(f"{t('company_overview')} - {sector} / {industry}", expanded=False):
+        detail_col1, detail_col2, detail_col3, detail_col4 = st.columns(4)
+
+        with detail_col1:
+            st.markdown(f"**{t('sector')}:** {sector}")
+            st.markdown(f"**{t('industry')}:** {industry}")
+
+        with detail_col2:
+            employees_str = f"{employees:,}" if employees else "N/A"
+            st.markdown(f"**{t('employees')}:** {employees_str}")
+            st.markdown(f"**Currency:** {currency}")
+
+        with detail_col3:
+            website = info.get('website', '')
+            if website:
+                st.markdown(f"**{t('website')}:** [{website}]({website})")
+            country = info.get('country', 'N/A')
+            st.markdown(f"**Country:** {country}")
+
+        with detail_col4:
+            pe = info.get('trailingPE')
+            pe_str = f"{pe:.1f}" if pe else "N/A"
+            st.markdown(f"**P/E Ratio:** {pe_str}")
+            dividend = info.get('dividendYield')
+            div_str = f"{dividend*100:.2f}%" if dividend else "N/A"
+            st.markdown(f"**Dividend Yield:** {div_str}")
+
+    st.divider()
 
 
 # --- MAIN APPLICATION LOGIC ---
@@ -310,6 +532,9 @@ def main():
 
     info = data_dict.get("info", {}) or {}
 
+    # --- EXECUTIVE SUMMARY DASHBOARD ---
+    render_executive_summary(ticker_input, info, sankey_vals)
+
     # --- MAIN TABS ---
     tab1, tab2, tab3, tab4, tab5 = st.tabs([t('tab_viz'), t('tab_metrics'), t('tab_ai_report'), t('tab_extra'), t('tab_portfolio')])
 
@@ -546,57 +771,68 @@ def render_tab_metrics(data_dict, sankey_vals, info):
     # SECTION 1: KEY HIGHLIGHTS
     st.markdown("#### Key Highlights")
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Revenue per Share", fmt_num(info.get("revenuePerShare")))
-    k2.metric("EPS (Trailing)", fmt_num(info.get("trailingEps")))
-    k3.metric("ROE", fmt_pct(info.get("returnOnEquity")))
-    k4.metric("ROIC", fmt_pct(roic), help="Return on Invested Capital = NOPAT / (Equity + Debt - Cash)")
+    k1.metric("Revenue per Share", fmt_num(info.get("revenuePerShare")), help=get_tooltip('revenue_per_share'))
+    k2.metric("EPS (Trailing)", fmt_num(info.get("trailingEps")), help=get_tooltip('eps'))
+    k3.metric("ROE", fmt_pct(info.get("returnOnEquity")), help=get_tooltip('roe'))
+    k4.metric("ROIC", fmt_pct(roic), help=get_tooltip('roic'))
 
     k1b, k2b, k3b, k4b = st.columns(4)
-    k1b.metric("Debt / Equity", fmt_num(info.get("debtToEquity")))
-    k2b.metric("Book Value / Share", fmt_num(info.get("bookValue")))
-    k3b.metric("Current Ratio", fmt_num(info.get("currentRatio")))
-    k4b.metric("Quick Ratio", fmt_num(info.get("quickRatio")))
+    k1b.metric("Debt / Equity", fmt_num(info.get("debtToEquity")), help=get_tooltip('debt_to_equity'))
+    k2b.metric("Book Value / Share", fmt_num(info.get("bookValue")), help=get_tooltip('book_value'))
+    k3b.metric("Current Ratio", fmt_num(info.get("currentRatio")), help=get_tooltip('current_ratio'))
+    k4b.metric("Quick Ratio", fmt_num(info.get("quickRatio")), help=get_tooltip('quick_ratio'))
 
     st.divider()
 
     # SECTION 2: VALUATION
     st.markdown("#### Valuation")
     w1, w2, w3, w4 = st.columns(4)
-    w1.metric("Price / Sales (P/S)", fmt_num(info.get("priceToSalesTrailing12Months")))
-    w2.metric("Price / Earnings (P/E)", fmt_num(info.get("trailingPE")))
-    w3.metric("Price / Book (P/B)", fmt_num(info.get("priceToBook")))
-    w4.metric("PEG Ratio", fmt_num(info.get("pegRatio")))
+    w1.metric("Price / Sales (P/S)", fmt_num(info.get("priceToSalesTrailing12Months")), help=get_tooltip('ps_ratio'))
+    w2.metric("Price / Earnings (P/E)", fmt_num(info.get("trailingPE")), help=get_tooltip('pe_ratio'))
+    w3.metric("Price / Book (P/B)", fmt_num(info.get("priceToBook")), help=get_tooltip('pb_ratio'))
+    w4.metric("PEG Ratio", fmt_num(info.get("pegRatio")), help=get_tooltip('peg_ratio'))
 
     w1b, w2b, w3b, w4b = st.columns(4)
-    w1b.metric("EV / Revenue", fmt_num(info.get("enterpriseToRevenue")))
-    w2b.metric("EV / EBITDA", fmt_num(info.get("enterpriseToEbitda")))
-    w3b.metric("Market Cap", fmt_num(info.get("marketCap"), suffix=" $", compact=True))
-    w4b.metric("Forward P/E", fmt_num(info.get("forwardPE")))
+    w1b.metric("EV / Revenue", fmt_num(info.get("enterpriseToRevenue")), help=get_tooltip('ev_revenue'))
+    w2b.metric("EV / EBITDA", fmt_num(info.get("enterpriseToEbitda")), help=get_tooltip('ev_ebitda'))
+    w3b.metric("Market Cap", fmt_num(info.get("marketCap"), suffix=" $", compact=True), help=get_tooltip('market_cap'))
+    w4b.metric("Forward P/E", fmt_num(info.get("forwardPE")), help=get_tooltip('forward_pe'))
 
     st.divider()
 
     # SECTION 3: FINANCIAL HEALTH (SOLVENCY)
     st.markdown("#### Financial Health")
     f1, f2, f3, f4 = st.columns(4)
-    f1.metric("Total Assets / Share", fmt_num(assets_per_share))
-    f2.metric("Debt / Assets", fmt_num(debt_to_assets))
-    f3.metric("Debt / Total Capital", fmt_num(debt_to_capital))
-    f4.metric("Revenue / Employee", fmt_num(rev_per_empl))
+    f1.metric("Total Assets / Share", fmt_num(assets_per_share), help=get_tooltip('assets_per_share'))
+    f2.metric("Debt / Assets", fmt_num(debt_to_assets), help=get_tooltip('debt_to_assets'))
+    f3.metric("Debt / Total Capital", fmt_num(debt_to_capital), help="Debt / (Debt + Equity). Shows leverage relative to total capital structure.")
+    f4.metric("Revenue / Employee", fmt_num(rev_per_empl), help=get_tooltip('revenue_per_employee'))
 
     st.divider()
 
     # SECTION 4: PROFITABILITY
     st.markdown("#### Profitability")
     r1, r2, r3, r4 = st.columns(4)
-    r1.metric("Gross Margin", fmt_pct(info.get("grossMargins")))
-    r2.metric("Operating Margin", fmt_pct(info.get("operatingMargins")))
-    r3.metric("Profit Margin", fmt_pct(info.get("profitMargins")))
-    r4.metric("Beta (Volatility)", fmt_num(info.get("beta")))
+    r1.metric("Gross Margin", fmt_pct(info.get("grossMargins")), help=get_tooltip('gross_margin'))
+    r2.metric("Operating Margin", fmt_pct(info.get("operatingMargins")), help=get_tooltip('operating_margin'))
+    r3.metric("Profit Margin", fmt_pct(info.get("profitMargins")), help=get_tooltip('profit_margin'))
+    r4.metric("Beta (Volatility)", fmt_num(info.get("beta")), help=get_tooltip('beta'))
 
 
 def render_tab_ai_report(ticker_input, sankey_vals, info, data_dict):
     """Render Tab 3: AI Report."""
-    st.header(t('ai_report_title'))
+    # Header with cache status
+    header_col, cache_col = st.columns([4, 1])
+    with header_col:
+        st.header(t('ai_report_title'))
+    with cache_col:
+        # Show cache status indicator
+        local_cached_check, local_age_check = ReportGenerator.get_cached_report(ticker_input)
+        if local_cached_check and local_age_check is not None:
+            render_cache_indicator(True, local_age_check)
+        else:
+            render_cache_indicator(False)
+
     st.caption(t('ai_report_subtitle'))
 
     # --- API CONFIGURATION ---
@@ -847,9 +1083,32 @@ def render_tab_extra_data(ticker_input, data_dict):
         st.subheader("Insider Trading")
         insider_df = data_dict['insider']
         if not insider_df.empty:
-            st.dataframe(insider_df, use_container_width=True)
+            # Configure columns for better display
+            column_config = {}
+            if 'Shares' in insider_df.columns:
+                column_config['Shares'] = st.column_config.NumberColumn(
+                    "Shares",
+                    format="%d"
+                )
+            if 'Value' in insider_df.columns:
+                column_config['Value'] = st.column_config.NumberColumn(
+                    "Value",
+                    format="$%,.0f"
+                )
+            if 'Start Date' in insider_df.columns:
+                column_config['Start Date'] = st.column_config.DateColumn(
+                    "Date",
+                    format="YYYY-MM-DD"
+                )
+
+            st.dataframe(
+                insider_df,
+                use_container_width=True,
+                column_config=column_config,
+                hide_index=True
+            )
         else:
-            st.write("No insider trading data available.")
+            st.info("No insider trading data available.")
     with col_b:
         st.subheader("Analyst Sentiment")
         rec_df = data_dict['recommendations']
@@ -858,10 +1117,15 @@ def render_tab_extra_data(ticker_input, data_dict):
             sentiment_fig = Visualizer.plot_sentiment(rec_df)
             if sentiment_fig:
                 st.plotly_chart(sentiment_fig, use_container_width=True)
-            # Display recent recommendations table
-            st.dataframe(rec_df.tail(10), use_container_width=True)
+            # Display recent recommendations table with better formatting
+            display_df = rec_df.tail(10).copy()
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.write("No analyst recommendations available.")
+            st.info("No analyst recommendations available.")
 
     # --- NEWS FEED SECTION ---
     st.divider()

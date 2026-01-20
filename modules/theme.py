@@ -270,6 +270,199 @@ def apply_theme_css():
     ::-webkit-scrollbar-thumb:hover {{
         background: {theme['primaryColor']};
     }}
+
+    /* Executive Summary Dashboard */
+    .exec-summary {{
+        background: linear-gradient(135deg, {theme['secondaryBackgroundColor']} 0%, {theme['cardBackground']} 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid {theme['cardBorder']};
+    }}
+
+    .exec-summary-header {{
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }}
+
+    .exec-summary-title {{
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: {theme['textColor']};
+        margin: 0;
+    }}
+
+    .company-badge {{
+        background: {theme['primaryColor']};
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }}
+
+    .health-indicator {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+    }}
+
+    .health-good {{
+        background: rgba(52, 168, 83, 0.15);
+        color: {theme['successColor']};
+    }}
+
+    .health-warning {{
+        background: rgba(251, 188, 5, 0.15);
+        color: {theme['warningColor']};
+    }}
+
+    .health-poor {{
+        background: rgba(234, 67, 53, 0.15);
+        color: {theme['errorColor']};
+    }}
+
+    /* Cache Status Indicator */
+    .cache-indicator {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }}
+
+    .cache-fresh {{
+        background: rgba(52, 168, 83, 0.15);
+        color: {theme['successColor']};
+    }}
+
+    .cache-cached {{
+        background: rgba(66, 133, 244, 0.15);
+        color: {theme['primaryColor']};
+    }}
+
+    .cache-stale {{
+        background: rgba(251, 188, 5, 0.15);
+        color: {theme['warningColor']};
+    }}
+
+    /* Stat Card */
+    .stat-card {{
+        background: {theme['cardBackground']};
+        border: 1px solid {theme['cardBorder']};
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }}
+
+    .stat-card:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }}
+
+    .stat-value {{
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: {theme['primaryColor']};
+        margin: 0;
+    }}
+
+    .stat-label {{
+        font-size: 0.875rem;
+        color: {theme['textColor']};
+        opacity: 0.7;
+        margin-top: 0.25rem;
+    }}
+
+    /* Improved Data Tables */
+    .data-table-container {{
+        background: {theme['cardBackground']};
+        border: 1px solid {theme['cardBorder']};
+        border-radius: 10px;
+        overflow: hidden;
+    }}
+
+    .table-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: {theme['secondaryBackgroundColor']};
+        border-bottom: 1px solid {theme['cardBorder']};
+    }}
+
+    .table-search {{
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }}
+
+    /* KPI Card Grid */
+    .kpi-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+    }}
+
+    .kpi-card {{
+        background: {theme['cardBackground']};
+        border: 1px solid {theme['cardBorder']};
+        border-radius: 8px;
+        padding: 1rem;
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .kpi-card::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: {theme['primaryColor']};
+    }}
+
+    .kpi-value {{
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: {theme['textColor']};
+    }}
+
+    .kpi-label {{
+        font-size: 0.75rem;
+        color: {theme['textColor']};
+        opacity: 0.7;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }}
+
+    .kpi-change {{
+        font-size: 0.875rem;
+        font-weight: 500;
+    }}
+
+    .kpi-change.positive {{
+        color: {theme['successColor']};
+    }}
+
+    .kpi-change.negative {{
+        color: {theme['errorColor']};
+    }}
+
+    /* Tooltip styling */
+    [data-tooltip] {{
+        position: relative;
+        cursor: help;
+    }}
     </style>
     """
 
