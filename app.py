@@ -67,13 +67,13 @@ def main():
 
     # --- SIDEBAR ---
     with st.sidebar:
-        # --- USER AUTH SECTION ---
+        # --- ACCOUNT SECTION ---
         if SupabaseAuth.is_configured():
             # Initialize session state for auth
             if "user" not in st.session_state:
                 st.session_state["user"] = None
             if "auth_mode" not in st.session_state:
-                st.session_state["auth_mode"] = "login"  # or "register"
+                st.session_state["auth_mode"] = "login"
 
             # Restore Supabase session on each run
             SupabaseAuth.restore_session()
@@ -81,78 +81,70 @@ def main():
             current_user = st.session_state.get("user")
 
             if current_user:
-                # User is logged in
-                st.success(f"Welcome, {current_user.email}!")
-                if st.button("Logout", use_container_width=True):
-                    SupabaseAuth.sign_out()
-                    st.session_state["user"] = None
-                    st.rerun()
-
-                # Show user stats
-                watchlist = SupabaseAuth.get_watchlist(current_user.id)
-                saved = SupabaseAuth.get_saved_analyses(current_user.id)
-                st.caption(f"Watchlist: {len(watchlist)} | Saved analyses: {len(saved)}")
-                st.markdown("---")
+                # User is logged in - compact display
+                with st.container():
+                    col_user, col_logout = st.columns([3, 1])
+                    with col_user:
+                        st.markdown(f"**{current_user.email}**")
+                        watchlist = SupabaseAuth.get_watchlist(current_user.id)
+                        saved = SupabaseAuth.get_saved_analyses(current_user.id)
+                        st.caption(f"{len(watchlist)} watched · {len(saved)} saved")
+                    with col_logout:
+                        if st.button("↪", help="Logout", key="logout_btn"):
+                            SupabaseAuth.sign_out()
+                            st.session_state["user"] = None
+                            st.rerun()
             else:
-                # Login/Register forms
-                auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
+                # Login/Register - collapsible
+                with st.expander("Account", expanded=False):
+                    auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
 
-                with auth_tab1:
-                    with st.form("login_form"):
-                        login_email = st.text_input("Email", key="login_email")
-                        login_password = st.text_input("Password", type="password", key="login_pass")
-                        login_submit = st.form_submit_button("Login", use_container_width=True)
+                    with auth_tab1:
+                        with st.form("login_form"):
+                            login_email = st.text_input("Email", key="login_email")
+                            login_password = st.text_input("Password", type="password", key="login_pass")
+                            login_submit = st.form_submit_button("Login", use_container_width=True)
 
-                        if login_submit:
-                            if login_email and login_password:
-                                result = SupabaseAuth.sign_in(login_email, login_password)
-                                if result.get("success"):
-                                    st.session_state["user"] = result["user"]
-                                    st.success("Logged in successfully!")
-                                    st.rerun()
+                            if login_submit:
+                                if login_email and login_password:
+                                    result = SupabaseAuth.sign_in(login_email, login_password)
+                                    if result.get("success"):
+                                        st.session_state["user"] = result["user"]
+                                        st.success("Logged in successfully!")
+                                        st.rerun()
+                                    else:
+                                        st.error(result.get("error", "Login failed"))
                                 else:
-                                    st.error(result.get("error", "Login failed"))
-                            else:
-                                st.warning("Please enter email and password")
+                                    st.warning("Please enter email and password")
 
-                with auth_tab2:
-                    with st.form("register_form"):
-                        reg_email = st.text_input("Email", key="reg_email")
-                        reg_password = st.text_input("Password", type="password", key="reg_pass")
-                        reg_password2 = st.text_input("Confirm Password", type="password", key="reg_pass2")
-                        reg_submit = st.form_submit_button("Create Account", use_container_width=True)
+                    with auth_tab2:
+                        with st.form("register_form"):
+                            reg_email = st.text_input("Email", key="reg_email")
+                            reg_password = st.text_input("Password", type="password", key="reg_pass")
+                            reg_password2 = st.text_input("Confirm Password", type="password", key="reg_pass2")
+                            reg_submit = st.form_submit_button("Create Account", use_container_width=True)
 
-                        if reg_submit:
-                            if not reg_email or not reg_password:
-                                st.warning("Please fill all fields")
-                            elif reg_password != reg_password2:
-                                st.error("Passwords don't match")
-                            elif len(reg_password) < 6:
-                                st.error("Password must be at least 6 characters")
-                            else:
-                                result = SupabaseAuth.sign_up(reg_email, reg_password)
-                                if result.get("success"):
-                                    st.success("Account created! Please check your email to confirm.")
+                            if reg_submit:
+                                if not reg_email or not reg_password:
+                                    st.warning("Please fill all fields")
+                                elif reg_password != reg_password2:
+                                    st.error("Passwords don't match")
+                                elif len(reg_password) < 6:
+                                    st.error("Password must be at least 6 characters")
                                 else:
-                                    st.error(result.get("error", "Registration failed"))
+                                    result = SupabaseAuth.sign_up(reg_email, reg_password)
+                                    if result.get("success"):
+                                        st.success("Account created! Please check your email to confirm.")
+                                    else:
+                                        st.error(result.get("error", "Registration failed"))
 
-                st.markdown("---")
+        st.divider()
 
-        # --- SETTINGS SECTION (Theme & Language) ---
-        with st.expander(t('settings'), expanded=False):
-            render_language_selector()
-            st.markdown("---")
-            render_theme_toggle()
-
-        st.markdown("---")
-
-        st.header(t('configuration'))
+        # --- COMPANY SELECTION (Primary Action) ---
+        st.subheader(t('main_company'))
 
         # Get ticker list
         tickers_list = DataManager.get_tickers_list()
-
-        # --- MAIN SECTION ---
-        st.subheader(t('main_company'))
 
         # Show user's watchlist if logged in
         current_user = st.session_state.get("user")
@@ -160,14 +152,14 @@ def main():
             watchlist = SupabaseAuth.get_watchlist(current_user.id)
             if watchlist:
                 watchlist_tickers = [f"{w['ticker']} | {w.get('company_name', '')}" for w in watchlist]
-                st.caption(t('your_watchlist'))
                 selected_from_watchlist = st.selectbox(
                     t('quick_select'),
                     options=[""] + watchlist_tickers,
-                    key="watchlist_select"
+                    key="watchlist_select",
+                    label_visibility="collapsed",
+                    placeholder="Quick select from watchlist..."
                 )
                 if selected_from_watchlist:
-                    # Find matching item in tickers_list
                     ticker_from_wl = selected_from_watchlist.split(" | ")[0]
                     matching = [t for t in tickers_list if t.startswith(ticker_from_wl)]
                     if matching:
@@ -182,70 +174,69 @@ def main():
             default_idx = 0
 
         selected_item = st.selectbox(
-            "Search for a company:",
+            t('search_company'),
             options=tickers_list,
-            index=default_idx
+            index=default_idx,
+            label_visibility="collapsed",
+            placeholder="Search company..."
         )
         ticker_input = selected_item.split(" | ")[0]
         company_name = selected_item.split(" | ")[1] if " | " in selected_item else ticker_input
 
-        # Add to watchlist button (if logged in)
+        # Watchlist toggle (compact)
         if current_user and SupabaseAuth.is_configured():
             user_watchlist_tickers = [w['ticker'] for w in SupabaseAuth.get_watchlist(current_user.id)]
             watchlist_limit = SupabaseAuth.can_add_to_watchlist(current_user.id)
 
             if ticker_input in user_watchlist_tickers:
-                if st.button("Remove from Watchlist", key="remove_wl"):
+                if st.button("★ Remove from Watchlist", key="remove_wl", use_container_width=True):
                     if SupabaseAuth.remove_from_watchlist(current_user.id, ticker_input):
-                        st.success(f"Removed {ticker_input} from watchlist!")
                         st.rerun()
-                    else:
-                        st.error("Failed to remove from watchlist")
             else:
-                # Check watchlist limit
                 can_add = watchlist_limit.get('allowed', True)
-                if not can_add:
-                    st.warning(f"⚠️ {watchlist_limit.get('message', 'Watchlist full')}")
-
-                if st.button("Add to Watchlist", key="add_wl", disabled=not can_add):
+                if st.button("☆ Add to Watchlist", key="add_wl", disabled=not can_add, use_container_width=True):
                     result = SupabaseAuth.add_to_watchlist(current_user.id, ticker_input, company_name)
                     if result.get("success"):
-                        st.success(f"Added {ticker_input} to watchlist!")
                         st.rerun()
-                    else:
-                        st.error(f"Failed: {result.get('error', 'Unknown error')}")
 
-        # What-If for Main
-        st.caption(f"Simulation: {ticker_input}")
-        rev_change = st.slider("Revenue Change (%)", -30, 30, key='rev_change')
-        cost_change = st.slider("Cost Change (%)", -30, 30, key='cost_change')
-        st.button("↺ Reset (Main)", on_click=reset_main_sliders)
+        st.divider()
 
-        st.markdown("---")
+        # --- SIMULATION SECTION (Collapsible) ---
+        with st.expander(t('simulation'), expanded=False):
+            st.caption(f"{ticker_input}")
+            rev_change = st.slider(t('revenue_change'), -30, 30, key='rev_change')
+            cost_change = st.slider(t('cost_change'), -30, 30, key='cost_change')
+            st.button("Reset", on_click=reset_main_sliders, use_container_width=True)
 
-        # --- BENCHMARK SECTION ---
-        st.subheader("2. Benchmark (Competitor)")
-        enable_benchmark = st.checkbox("Compare with Competitor")
-        ticker_comp = None
+        # --- BENCHMARK SECTION (Collapsible) ---
+        with st.expander(t('benchmark'), expanded=False):
+            enable_benchmark = st.checkbox(t('compare_competitor'))
+            ticker_comp = None
+            comp_rev_change = 0
+            comp_cost_change = 0
 
-        # Initialize competitor variables to 0 to prevent crashes
-        comp_rev_change = 0
-        comp_cost_change = 0
+            if enable_benchmark:
+                selected_comp = st.selectbox(
+                    t('select_competitor'),
+                    options=tickers_list,
+                    index=1 if len(tickers_list) > 1 else 0,
+                    key="benchmark_select",
+                    label_visibility="collapsed"
+                )
+                ticker_comp = selected_comp.split(" | ")[0]
 
-        if enable_benchmark:
-            selected_comp = st.selectbox(
-                "Select Competitor:",
-                options=tickers_list,
-                index=1 if len(tickers_list) > 1 else 0,
-                key="benchmark_select"
-            )
-            ticker_comp = selected_comp.split(" | ")[0]
+                st.caption(f"{ticker_comp}")
+                comp_rev_change = st.slider(t('revenue_change'), -30, 30, key='comp_rev_change')
+                comp_cost_change = st.slider(t('cost_change'), -30, 30, key='comp_cost_change')
+                st.button("Reset", on_click=reset_comp_sliders, key="reset_comp", use_container_width=True)
 
-            # What-If for Competitor
-            st.caption(f"Simulation: {ticker_comp}")
-            comp_rev_change = st.slider("Rev Change (Comp) %", -30, 30, key='comp_rev_change')
-            comp_cost_change = st.slider("Cost Change (Comp) %", -30, 30, key='comp_cost_change')
-            st.button("↺ Reset (Benchmark)", on_click=reset_comp_sliders)
+        st.divider()
+
+        # --- SETTINGS (Bottom of sidebar) ---
+        with st.expander(t('settings'), expanded=False):
+            render_language_selector()
+            st.divider()
+            render_theme_toggle()
 
     if not ticker_input:
         st.info("Select a company from the list to start.")
@@ -284,15 +275,16 @@ def main():
 
     # Add period selector to sidebar
     with st.sidebar:
-        st.markdown("---")
-        st.subheader("3. Reporting Period")
+        st.divider()
+        st.subheader(t('reporting_period'))
         if limited_periods:
             period_options = [p[0] for p in limited_periods]
             selected_period_name = st.selectbox(
-                "Select period for analysis:",
+                t('select_period'),
                 options=period_options,
                 index=0,
-                help="Choose which quarterly report to analyze"
+                help="Choose which quarterly report to analyze",
+                label_visibility="collapsed"
             )
             # Find the index for the selected period
             selected_period_index = next(
@@ -301,12 +293,12 @@ def main():
             # Show upgrade hint if periods are limited
             if periods_limited:
                 if is_guest:
-                    st.caption(f"🔒 Guest: {periods_limit} periods. Login for more.")
+                    st.caption(t('guest_periods_limit', limit=periods_limit))
                 else:
-                    st.caption(f"🔒 Free tier: {periods_limit} periods. Upgrade for more.")
+                    st.caption(t('free_periods_limit', limit=periods_limit))
         else:
             selected_period_index = 0
-            st.info("No historical periods available")
+            st.info(t('no_historical_periods'))
 
     # Process data for MAIN (with selected period and sliders)
     sankey_vals = data_mgr.extract_sankey_data(
@@ -396,7 +388,7 @@ def render_tab_visualization(data_mgr, data_dict, ticker_input, sankey_vals, rev
 
     # --- HISTORICAL TRENDS SECTION ---
     st.divider()
-    st.subheader("📈 Historical Trends")
+    st.subheader(t('historical_trends'))
 
     # Plot historical trend chart
     fig_trend = Visualizer.plot_historical_trend(data_dict['income_stmt'])
@@ -437,7 +429,7 @@ def render_tab_visualization(data_mgr, data_dict, ticker_input, sankey_vals, rev
 
 def render_tab_metrics(data_dict, sankey_vals, info):
     """Render Tab 2: Metrics Dashboard."""
-    st.subheader("📊 Metrics Dashboard")
+    st.subheader(t('metrics_dashboard'))
 
     # --- Data Preparation ---
     bs = data_dict.get("balance_sheet", None)
@@ -549,20 +541,10 @@ def render_tab_metrics(data_dict, sankey_vals, info):
     debt_to_capital = safe_div(debt, (debt + total_equity) if (debt and total_equity) else None)
     rev_per_empl = safe_div(rev, empl)
 
-    # --- CSS STYLING FOR CARDS ---
-    st.markdown("""
-    <style>
-    div[data-testid="stMetric"] {
-        background-color: #262730;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #464b5c;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # CSS styling is handled by theme.py - no duplicate styles needed
 
     # SECTION 1: KEY HIGHLIGHTS
-    st.markdown("#### 🔹 Key Highlights")
+    st.markdown("#### Key Highlights")
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Revenue per Share", fmt_num(info.get("revenuePerShare")))
     k2.metric("EPS (Trailing)", fmt_num(info.get("trailingEps")))
@@ -578,7 +560,7 @@ def render_tab_metrics(data_dict, sankey_vals, info):
     st.divider()
 
     # SECTION 2: VALUATION
-    st.markdown("#### 💲 Valuation")
+    st.markdown("#### Valuation")
     w1, w2, w3, w4 = st.columns(4)
     w1.metric("Price / Sales (P/S)", fmt_num(info.get("priceToSalesTrailing12Months")))
     w2.metric("Price / Earnings (P/E)", fmt_num(info.get("trailingPE")))
@@ -594,7 +576,7 @@ def render_tab_metrics(data_dict, sankey_vals, info):
     st.divider()
 
     # SECTION 3: FINANCIAL HEALTH (SOLVENCY)
-    st.markdown("#### 🏦 Financial Health")
+    st.markdown("#### Financial Health")
     f1, f2, f3, f4 = st.columns(4)
     f1.metric("Total Assets / Share", fmt_num(assets_per_share))
     f2.metric("Debt / Assets", fmt_num(debt_to_assets))
@@ -604,7 +586,7 @@ def render_tab_metrics(data_dict, sankey_vals, info):
     st.divider()
 
     # SECTION 4: PROFITABILITY
-    st.markdown("#### 📈 Profitability")
+    st.markdown("#### Profitability")
     r1, r2, r3, r4 = st.columns(4)
     r1.metric("Gross Margin", fmt_pct(info.get("grossMargins")))
     r2.metric("Operating Margin", fmt_pct(info.get("operatingMargins")))
@@ -614,8 +596,8 @@ def render_tab_metrics(data_dict, sankey_vals, info):
 
 def render_tab_ai_report(ticker_input, sankey_vals, info, data_dict):
     """Render Tab 3: AI Report."""
-    st.header("🤖 AI Report (Perplexity Sonar)")
-    st.caption("This analysis combines fundamental data with the latest web news (Live Search).")
+    st.header(t('ai_report_title'))
+    st.caption(t('ai_report_subtitle'))
 
     # --- API CONFIGURATION ---
     PERPLEXITY_API_KEY = None
@@ -728,7 +710,7 @@ def render_tab_ai_report(ticker_input, sankey_vals, info, data_dict):
 
         # --- GENERATE BUTTON LOGIC ---
         if generate_btn:
-            with st.spinner("⏳ Perplexity is searching the web and analyzing data..."):
+            with st.spinner(t('generating_report')):
                 analysis_text, citations = ReportGenerator.get_ai_analysis(PERPLEXITY_API_KEY, prompt)
 
                 # Clean text immediately after API response
@@ -883,7 +865,7 @@ def render_tab_extra_data(ticker_input, data_dict):
 
     # --- NEWS FEED SECTION ---
     st.divider()
-    st.subheader(f"📰 {t('latest_news')}")
+    st.subheader(t('latest_news'))
 
     # Get news sentiment
     sentiment = get_market_sentiment_from_news(ticker_input)
@@ -901,7 +883,7 @@ def render_tab_extra_data(ticker_input, data_dict):
             st.metric(t('neutral_news'), sentiment['neutral'])
         with sent_col4:
             score = sentiment['sentiment_score']
-            sentiment_label = "🟢 Positive" if score > 0.1 else "🔴 Negative" if score < -0.1 else "🟡 Neutral"
+            sentiment_label = "↑ Positive" if score > 0.1 else "↓ Negative" if score < -0.1 else "→ Neutral"
             st.metric(t('news_sentiment'), sentiment_label)
 
         # Display news feed
@@ -911,7 +893,7 @@ def render_tab_extra_data(ticker_input, data_dict):
 
     # --- EXPORT DATA SECTION ---
     st.divider()
-    st.subheader("📥 Export Financial Data")
+    st.subheader(t('export_data'))
 
     # Check export permission for Excel
     current_user_excel = st.session_state.get("user")
@@ -1000,7 +982,7 @@ def render_tab_extra_data(ticker_input, data_dict):
     current_user = st.session_state.get("user")
     if current_user and SupabaseAuth.is_configured():
         st.divider()
-        st.subheader("📁 My Saved Analyses")
+        st.subheader(t('my_saved_analyses'))
 
         saved_analyses = SupabaseAuth.get_saved_analyses(current_user.id)
 
@@ -1030,16 +1012,24 @@ def render_tab_portfolio(ticker_input: str):
     current_user = st.session_state.get("user")
 
     # --- TECHNICAL ANALYSIS SECTION (available for all) ---
-    st.subheader(f"📈 {t('technical_analysis')}")
+    st.subheader(t('technical_analysis'))
     render_technical_indicators(ticker_input)
 
     st.divider()
 
     # --- PORTFOLIO SECTION (logged-in users only) ---
-    st.subheader(f"💼 {t('portfolio')}")
+    st.subheader(t('portfolio'))
 
     if not current_user or not SupabaseAuth.is_configured():
-        st.info("🔒 Login to track your portfolio and see your positions.")
+        st.container(border=True).markdown(
+            """
+            **Login to unlock portfolio features**
+
+            Track your holdings, set price alerts, and monitor your investments.
+
+            Create a free account to get started.
+            """
+        )
         return
 
     # Check portfolio limits
@@ -1101,7 +1091,7 @@ def render_tab_portfolio(ticker_input: str):
 
     # --- PRICE ALERTS SECTION ---
     st.divider()
-    st.subheader(f"🔔 {t('price_alerts')}")
+    st.subheader(t('price_alerts'))
 
     # Check alerts limits
     alerts_check = SupabaseAuth.can_create_alert(current_user.id)
@@ -1184,7 +1174,12 @@ def render_tab_portfolio(ticker_input: str):
             cols = st.columns([0.3, 1.5, 1, 1, 0.5, 0.5])
 
             with cols[0]:
-                st.write("🔴" if is_triggered else "🟢" if is_active else "⚪")
+                if is_triggered:
+                    st.write("⚠ Triggered")
+                elif is_active:
+                    st.write("● Active")
+                else:
+                    st.write("○ Paused")
 
             with cols[1]:
                 st.write(f"**{ticker}** - {type_label}")

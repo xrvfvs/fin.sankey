@@ -137,15 +137,35 @@ def apply_theme_css():
         background-color: {theme['primaryColor']};
     }}
 
-    /* Buttons */
+    /* Buttons - consistent styling */
     .stButton > button {{
         border-radius: 8px;
         transition: all 0.2s ease;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
     }}
 
     .stButton > button:hover {{
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }}
+
+    /* Primary buttons (type="primary") */
+    .stButton > button[kind="primary"] {{
+        background-color: {theme['primaryColor']};
+        color: white;
+        border: none;
+    }}
+
+    /* Secondary buttons - subtle styling */
+    .stButton > button[kind="secondary"] {{
+        background-color: transparent;
+        border: 1px solid {theme['cardBorder']};
+        color: {theme['textColor']};
+    }}
+
+    .stButton > button[kind="secondary"]:hover {{
+        background-color: {theme['secondaryBackgroundColor']};
     }}
 
     /* Info/Warning/Error boxes */
@@ -184,9 +204,45 @@ def apply_theme_css():
         opacity: 0.7;
     }}
 
-    /* Markdown headers */
-    h1, h2, h3, h4, h5, h6 {{
+    /* Markdown headers - visual hierarchy */
+    h1 {{
         color: {theme['textColor']};
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }}
+
+    h2 {{
+        color: {theme['textColor']};
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid {theme['cardBorder']};
+    }}
+
+    h3 {{
+        color: {theme['textColor']};
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-top: 1rem;
+    }}
+
+    h4 {{
+        color: {theme['textColor']};
+        font-size: 1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.9;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }}
+
+    h5, h6 {{
+        color: {theme['textColor']};
+        font-weight: 500;
     }}
 
     /* Code blocks */

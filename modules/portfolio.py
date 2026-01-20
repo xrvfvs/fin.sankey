@@ -313,7 +313,7 @@ def render_technical_indicators(ticker_symbol: str):
     Args:
         ticker_symbol: Stock ticker symbol
     """
-    st.subheader(f"📈 {t('technical_analysis')} - {ticker_symbol}")
+    st.subheader(f"{t('technical_analysis')} - {ticker_symbol}")
 
     with st.spinner(t('loading_indicators')):
         signals = get_technical_signals(ticker_symbol)
@@ -332,11 +332,16 @@ def render_technical_indicators(ticker_symbol: str):
         )
 
     with col2:
-        signal_colors = {'bullish': '🟢', 'bearish': '🔴', 'neutral': '🟡'}
         overall = signals['overall_signal']
+        signal_display = {
+            'bullish': ('↑', 'Bullish'),
+            'bearish': ('↓', 'Bearish'),
+            'neutral': ('→', 'Neutral')
+        }
+        arrow, label = signal_display.get(overall, ('?', overall.upper()))
         st.metric(
             t('overall_signal'),
-            f"{signal_colors.get(overall, '⚪')} {overall.upper()}"
+            f"{arrow} {label}"
         )
 
     with col3:
@@ -353,10 +358,10 @@ def render_technical_indicators(ticker_symbol: str):
 
     with ind_col1:
         st.markdown("**MACD**")
-        macd_signal = "🟢 Bullish" if signals['macd'] > signals['macd_signal'] else "🔴 Bearish"
+        macd_status = "↑ Bullish" if signals['macd'] > signals['macd_signal'] else "↓ Bearish"
         st.write(f"MACD: {signals['macd']:.4f}")
         st.write(f"Signal: {signals['macd_signal']:.4f}")
-        st.write(f"Status: {macd_signal}")
+        st.write(f"Status: {macd_status}")
 
     with ind_col2:
         st.markdown("**Bollinger Bands**")
@@ -373,8 +378,8 @@ def render_technical_indicators(ticker_symbol: str):
 
     with ind_col4:
         st.markdown("**Signals Summary**")
-        st.write(f"🟢 Bullish: {signals['bullish_count']}")
-        st.write(f"🔴 Bearish: {signals['bearish_count']}")
+        st.write(f"↑ Bullish: {signals['bullish_count']}")
+        st.write(f"↓ Bearish: {signals['bearish_count']}")
         st.write(f"Overall: {signals['overall_signal'].upper()}")
 
 
@@ -439,24 +444,24 @@ def render_portfolio_summary(holdings: List[Dict]):
 
             with cols[2]:
                 st.write(f"${holding['current_price']:.2f}")
-                change_icon = "🟢" if holding['daily_change_pct'] >= 0 else "🔴"
-                st.caption(f"{change_icon} {holding['daily_change_pct']:.2f}%")
+                change_symbol = "↑" if holding['daily_change_pct'] >= 0 else "↓"
+                st.caption(f"{change_symbol} {holding['daily_change_pct']:+.2f}%")
 
             with cols[3]:
                 st.write(f"${holding['position_value']:,.2f}")
 
             with cols[4]:
-                gain_icon = "🟢" if holding['gain'] >= 0 else "🔴"
-                st.write(f"{gain_icon} ${holding['gain']:,.2f}")
-                st.caption(f"{holding['gain_pct']:.2f}%")
+                gain_symbol = "+" if holding['gain'] >= 0 else ""
+                st.write(f"{gain_symbol}${holding['gain']:,.2f}")
+                st.caption(f"{holding['gain_pct']:+.2f}%")
 
             with cols[5]:
                 # Technical signal for this holding
                 signals = get_technical_signals(holding['ticker'])
                 if signals.get('status') == 'ok':
-                    signal_icons = {'bullish': '🟢', 'bearish': '🔴', 'neutral': '🟡'}
+                    signal_display = {'bullish': '↑ Buy', 'bearish': '↓ Sell', 'neutral': '→ Hold'}
                     overall = signals['overall_signal']
-                    st.write(f"{signal_icons.get(overall, '⚪')}")
+                    st.write(signal_display.get(overall, '?'))
                     st.caption(f"RSI: {signals['rsi']:.0f}")
 
             st.markdown("---")

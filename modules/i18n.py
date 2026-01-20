@@ -23,8 +23,8 @@ LANGUAGES = {
 TRANSLATIONS = {
     # --- App Title & Subtitle ---
     'app_title': {
-        'en': '🧩 fin.sankey | Financial Flow Visualizer',
-        'pl': '🧩 fin.sankey | Wizualizacja Przepływów Finansowych',
+        'en': 'fin.sankey',
+        'pl': 'fin.sankey',
     },
     'app_subtitle': {
         'en': 'Cash flow visualization for NASDAQ/S&P500 companies',
@@ -103,24 +103,24 @@ TRANSLATIONS = {
 
     # --- Tabs ---
     'tab_viz': {
-        'en': '📊 Viz & Benchmark',
-        'pl': '📊 Wykresy & Benchmark',
+        'en': 'Visualization',
+        'pl': 'Wykresy',
     },
     'tab_metrics': {
-        'en': '📈 Metrics Dashboard',
-        'pl': '📈 Dashboard Wskaźników',
+        'en': 'Metrics',
+        'pl': 'Wskaźniki',
     },
     'tab_ai_report': {
-        'en': '🤖 AI Report',
-        'pl': '🤖 Raport AI',
+        'en': 'AI Report',
+        'pl': 'Raport AI',
     },
     'tab_extra': {
-        'en': '📑 Extra Data',
-        'pl': '📑 Dodatkowe Dane',
+        'en': 'Data & News',
+        'pl': 'Dane i News',
     },
     'tab_portfolio': {
-        'en': '💼 Portfolio',
-        'pl': '💼 Portfel',
+        'en': 'Portfolio',
+        'pl': 'Portfel',
     },
 
     # --- Tab 1: Visualization ---
@@ -129,8 +129,8 @@ TRANSLATIONS = {
         'pl': 'Analiza',
     },
     'historical_trends': {
-        'en': '📈 Historical Trends',
-        'pl': '📈 Trendy Historyczne',
+        'en': 'Historical Trends',
+        'pl': 'Trendy Historyczne',
     },
     'yoy_changes': {
         'en': 'Year-over-Year Changes',
@@ -143,30 +143,30 @@ TRANSLATIONS = {
 
     # --- Tab 2: Metrics ---
     'metrics_dashboard': {
-        'en': '📊 Metrics Dashboard',
-        'pl': '📊 Dashboard Wskaźników',
+        'en': 'Metrics Dashboard',
+        'pl': 'Dashboard Wskaźników',
     },
     'key_highlights': {
-        'en': '🔹 Key Highlights',
-        'pl': '🔹 Kluczowe Wskaźniki',
+        'en': 'Key Highlights',
+        'pl': 'Kluczowe Wskaźniki',
     },
     'valuation': {
-        'en': '💲 Valuation',
-        'pl': '💲 Wycena',
+        'en': 'Valuation',
+        'pl': 'Wycena',
     },
     'financial_health': {
-        'en': '🏦 Financial Health',
-        'pl': '🏦 Kondycja Finansowa',
+        'en': 'Financial Health',
+        'pl': 'Kondycja Finansowa',
     },
     'profitability': {
-        'en': '📈 Profitability',
-        'pl': '📈 Rentowność',
+        'en': 'Profitability',
+        'pl': 'Rentowność',
     },
 
     # --- Tab 3: AI Report ---
     'ai_report_title': {
-        'en': '🤖 AI Report (Perplexity Sonar)',
-        'pl': '🤖 Raport AI (Perplexity Sonar)',
+        'en': 'AI Report',
+        'pl': 'Raport AI',
     },
     'ai_report_subtitle': {
         'en': 'This analysis combines fundamental data with the latest web news (Live Search).',
@@ -201,8 +201,8 @@ TRANSLATIONS = {
         'pl': '🚀 Generuj Raport Live',
     },
     'generating_report': {
-        'en': '⏳ Perplexity is searching the web and analyzing data...',
-        'pl': '⏳ Perplexity przeszukuje sieć i analizuje dane...',
+        'en': 'Searching the web and analyzing financial data... This may take 15-30 seconds.',
+        'pl': 'Przeszukiwanie sieci i analiza danych finansowych... To może potrwać 15-30 sekund.',
     },
     'analysis_result': {
         'en': '### 📝 Analysis Result',
@@ -247,8 +247,8 @@ TRANSLATIONS = {
         'pl': 'Brak rekomendacji analityków.',
     },
     'export_data': {
-        'en': '📥 Export Financial Data',
-        'pl': '📥 Eksportuj Dane Finansowe',
+        'en': 'Export Financial Data',
+        'pl': 'Eksportuj Dane Finansowe',
     },
     'export_description': {
         'en': 'Download raw financial data for further analysis in Excel.',
@@ -275,12 +275,12 @@ TRANSLATIONS = {
         'pl': '📦 Wszystkie Dane (Wiele arkuszy)',
     },
     'my_saved_analyses': {
-        'en': '📁 My Saved Analyses',
-        'pl': '📁 Moje Zapisane Analizy',
+        'en': 'My Saved Analyses',
+        'pl': 'Moje Zapisane Analizy',
     },
     'no_saved_analyses': {
-        'en': "No saved analyses yet. Generate an AI report and click 'Save to My Analyses' to save it here.",
-        'pl': "Brak zapisanych analiz. Wygeneruj raport AI i kliknij 'Zapisz do Moich Analiz', aby zapisać tutaj.",
+        'en': "No saved analyses yet. Go to the AI Report tab to generate and save your first analysis.",
+        'pl': "Brak zapisanych analiz. Przejdź do zakładki Raport AI, aby wygenerować i zapisać pierwszą analizę.",
     },
     'delete': {
         'en': 'Delete',
@@ -439,8 +439,8 @@ TRANSLATIONS = {
         'pl': 'Śledzenie Portfela',
     },
     'portfolio_empty': {
-        'en': 'Your portfolio is empty. Add some holdings to get started.',
-        'pl': 'Twój portfel jest pusty. Dodaj pozycje, aby rozpocząć.',
+        'en': 'No positions yet. Use the form above to add your first holding.',
+        'pl': 'Brak pozycji. Użyj formularza powyżej, aby dodać pierwszą pozycję.',
     },
     'total_value': {
         'en': 'Total Value',
@@ -483,8 +483,8 @@ TRANSLATIONS = {
         'pl': 'Analiza Techniczna',
     },
     'loading_indicators': {
-        'en': 'Loading technical indicators...',
-        'pl': 'Ładowanie wskaźników technicznych...',
+        'en': 'Calculating technical indicators...',
+        'pl': 'Obliczanie wskaźników technicznych...',
     },
     'insufficient_data_for_analysis': {
         'en': 'Insufficient data for technical analysis',
@@ -533,8 +533,8 @@ TRANSLATIONS = {
         'pl': 'Twoje Alerty',
     },
     'no_alerts': {
-        'en': 'No alerts set. Create one to get notified about price changes.',
-        'pl': 'Brak alertów. Utwórz alert, aby otrzymywać powiadomienia o zmianach cen.',
+        'en': 'No price alerts configured. Create an alert above to get notified when a stock reaches your target price.',
+        'pl': 'Brak skonfigurowanych alertów. Utwórz alert powyżej, aby otrzymać powiadomienie gdy akcja osiągnie docelową cenę.',
     },
     'alerts_triggered': {
         'en': 'alerts triggered',
