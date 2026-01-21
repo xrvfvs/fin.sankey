@@ -1,0 +1,34 @@
+# Render Blueprint specification
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Main Streamlit application
+  - type: web
+    name: fin-sankey
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: STREAMLIT_SERVER_PORT
+        value: 10000
+      - key: STREAMLIT_SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: fin-sankey-cache
+          property: connectionString
+      # Add these manually in Render dashboard:
+      # - PERPLEXITY_API_KEY
+      # - SUPABASE_URL
+      # - SUPABASE_KEY
+      # - SENDGRID_API_KEY (or other email provider)
+
+  # Redis cache for session persistence
+  - type: redis
+    name: fin-sankey-cache
+    plan: free
+    maxmemoryPolicy: allkeys-lru
