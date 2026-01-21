@@ -1,0 +1,26 @@
+# Render Blueprint specification
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Main Streamlit application
+  - type: web
+    name: fin-sankey
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
+      # Add these in Render dashboard (Settings > Environment):
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

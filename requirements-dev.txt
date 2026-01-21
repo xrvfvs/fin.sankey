@@ -1,0 +1,20 @@
+# Development dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Linting & Formatting
+ruff>=0.1.0
+
+# Security scanning
+bandit>=1.7.0
+safety>=2.3.0
+
+# Type checking (optional)
+mypy>=1.0.0
+types-requests>=2.31.0
