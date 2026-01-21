@@ -6,8 +6,6 @@ Data fetching and processing module for financial data from yfinance.
 import pandas as pd
 import yfinance as yf
 import streamlit as st
-import requests
-from fake_useragent import UserAgent
 
 from modules.utils import retry_on_rate_limit
 from modules.logger import log_error, log_warning, log_debug, log_api_call
@@ -15,26 +13,6 @@ from modules.logger import log_error, log_warning, log_debug, log_api_call
 
 class DataManager:
     """Class responsible for fetching and processing data from yfinance."""
-
-    @staticmethod
-    def _get_session():
-        """Creates a session with custom headers to help avoid rate limiting."""
-        session = requests.Session()
-        try:
-            ua = UserAgent()
-            user_agent = ua.random
-        except Exception:
-            # Fallback user agent if generation fails
-            user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            
-        session.headers.update({
-            'User-Agent': user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        })
-        return session
 
     @staticmethod
     @st.cache_data(ttl=86400)
@@ -111,9 +89,8 @@ class DataManager:
     @retry_on_rate_limit(max_retries=3, base_delay=2)
     def get_financials(ticker_symbol):
         try:
-            # Use custom session to handle headers/User-Agent
-            session = DataManager._get_session()
-            ticker = yf.Ticker(ticker_symbol, session=session)
+            # Standard yfinance call - let the library handle sessions/headers
+            ticker = yf.Ticker(ticker_symbol)
 
             # Force fetching to check if data exists
             income_stmt = ticker.income_stmt
