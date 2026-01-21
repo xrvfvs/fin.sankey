@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  fin-sankey:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fin-sankey-app
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount secrets file (create .streamlit/secrets.toml locally)
+      - ./.streamlit:/app/.streamlit:ro
+      # Persist logs
+      - ./logs:/app/logs
+      # Persist report cache
+      - ./.report_cache:/app/.report_cache
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      # Redis connection (optional - for session persistence and caching)
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis cache for session persistence and horizontal scaling
+  redis:
+    image: redis:7-alpine
+    container_name: fin-sankey-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
