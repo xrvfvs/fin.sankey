@@ -35,3 +35,4 @@ services:
     name: fin-sankey-cache
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Allow connections from all Render services
