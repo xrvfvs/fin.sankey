@@ -10,3 +10,6 @@ pytest
 sendgrid
 redis
 requests
+requests-cache
+requests-ratelimiter
+fake-useragent
