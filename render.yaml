@@ -13,11 +13,6 @@ services:
     envVars:
       - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
         value: "false"
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: fin-sankey-cache
-          property: connectionString
       # Add these in Render dashboard (Settings > Environment):
       - key: PERPLEXITY_API_KEY
         sync: false
@@ -29,10 +24,3 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
-
-  # Redis cache for session persistence
-  - type: redis
-    name: fin-sankey-cache
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []  # Allow connections from all Render services
