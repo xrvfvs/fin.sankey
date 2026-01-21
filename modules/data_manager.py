@@ -6,10 +6,6 @@ Data fetching and processing module for financial data from yfinance.
 import pandas as pd
 import yfinance as yf
 import streamlit as st
-import requests
-import requests_cache
-from fake_useragent import UserAgent
-from datetime import timedelta
 
 from modules.utils import retry_on_rate_limit
 from modules.logger import log_error, log_warning, log_debug, log_api_call
@@ -89,39 +85,11 @@ class DataManager:
         return sorted(list(all_tickers))
 
     @staticmethod
-    def _get_session():
-        """Creates a cached session with custom headers to avoid rate limiting."""
-        try:
-            # Create a cached session (expires after 24 hours)
-            # Use a writable path for cache if possible, or just default
-            session = requests_cache.CachedSession('yfinance_cache', expire_after=timedelta(hours=24))
-        except Exception:
-            # Fallback to standard session if cache creation fails
-            session = requests.Session()
-
-        # Add a real browser user-agent
-        try:
-            ua = UserAgent()
-            user_agent = ua.random
-        except Exception:
-            user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            
-        session.headers.update({
-            'User-Agent': user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        })
-        return session
-
-    @staticmethod
     @st.cache_data(ttl=3600)
     @retry_on_rate_limit(max_retries=3, base_delay=2)
     def get_financials(ticker_symbol):
         try:
-            session = DataManager._get_session()
-            ticker = yf.Ticker(ticker_symbol, session=session)
+            ticker = yf.Ticker(ticker_symbol)
 
             # Force fetching to check if data exists
             income_stmt = ticker.income_stmt
