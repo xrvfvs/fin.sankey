@@ -290,75 +290,84 @@ def main():
     # --- SIDEBAR ---
     with st.sidebar:
         # --- ACCOUNT SECTION ---
-        if SupabaseAuth.is_configured():
-            # Initialize session state for auth
-            if "user" not in st.session_state:
-                st.session_state["user"] = None
-            if "auth_mode" not in st.session_state:
-                st.session_state["auth_mode"] = "login"
+        # Initialize session state for auth
+        if "user" not in st.session_state:
+            st.session_state["user"] = None
+        if "auth_mode" not in st.session_state:
+            st.session_state["auth_mode"] = "login"
 
-            # Restore Supabase session on each run
+        supabase_configured = SupabaseAuth.is_configured()
+
+        # Restore Supabase session on each run
+        if supabase_configured:
             SupabaseAuth.restore_session()
 
-            current_user = st.session_state.get("user")
+        current_user = st.session_state.get("user")
 
-            if current_user:
-                # User is logged in - compact display
-                with st.container():
-                    col_user, col_logout = st.columns([3, 1])
-                    with col_user:
-                        st.markdown(f"**{current_user.email}**")
-                        watchlist = SupabaseAuth.get_watchlist(current_user.id)
-                        saved = SupabaseAuth.get_saved_analyses(current_user.id)
-                        st.caption(f"{len(watchlist)} watched · {len(saved)} saved")
-                    with col_logout:
-                        if st.button("↪", help="Logout", key="logout_btn"):
-                            SupabaseAuth.sign_out()
-                            st.session_state["user"] = None
-                            st.rerun()
-            else:
-                # Login/Register - collapsible
-                with st.expander("Account", expanded=False):
-                    auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
+        if current_user and supabase_configured:
+            # User is logged in - compact display
+            with st.container():
+                col_user, col_logout = st.columns([3, 1])
+                with col_user:
+                    st.markdown(f"**{current_user.email}**")
+                    watchlist = SupabaseAuth.get_watchlist(current_user.id)
+                    saved = SupabaseAuth.get_saved_analyses(current_user.id)
+                    st.caption(f"{len(watchlist)} watched · {len(saved)} saved")
+                with col_logout:
+                    if st.button("↪", help="Logout", key="logout_btn"):
+                        SupabaseAuth.sign_out()
+                        st.session_state["user"] = None
+                        st.rerun()
+        else:
+            # Login/Register - always visible
+            with st.expander(t('login'), expanded=True):
+                if not supabase_configured:
+                    st.info(t('supabase_not_configured'))
 
-                    with auth_tab1:
-                        with st.form("login_form"):
-                            login_email = st.text_input("Email", key="login_email")
-                            login_password = st.text_input("Password", type="password", key="login_pass")
-                            login_submit = st.form_submit_button("Login", use_container_width=True)
+                auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
 
-                            if login_submit:
-                                if login_email and login_password:
-                                    result = SupabaseAuth.sign_in(login_email, login_password)
-                                    if result.get("success"):
-                                        st.session_state["user"] = result["user"]
-                                        st.success("Logged in successfully!")
-                                        st.rerun()
-                                    else:
-                                        st.error(result.get("error", "Login failed"))
+                with auth_tab1:
+                    with st.form("login_form"):
+                        login_email = st.text_input(t('email'), key="login_email")
+                        login_password = st.text_input(t('password'), type="password", key="login_pass")
+                        login_submit = st.form_submit_button(t('login'), use_container_width=True)
+
+                        if login_submit:
+                            if not supabase_configured:
+                                st.error(t('supabase_not_configured'))
+                            elif login_email and login_password:
+                                result = SupabaseAuth.sign_in(login_email, login_password)
+                                if result.get("success"):
+                                    st.session_state["user"] = result["user"]
+                                    st.success(t('login_success'))
+                                    st.rerun()
                                 else:
-                                    st.warning("Please enter email and password")
+                                    st.error(result.get("error", t('login_failed')))
+                            else:
+                                st.warning(t('enter_email_password'))
 
-                    with auth_tab2:
-                        with st.form("register_form"):
-                            reg_email = st.text_input("Email", key="reg_email")
-                            reg_password = st.text_input("Password", type="password", key="reg_pass")
-                            reg_password2 = st.text_input("Confirm Password", type="password", key="reg_pass2")
-                            reg_submit = st.form_submit_button("Create Account", use_container_width=True)
+                with auth_tab2:
+                    with st.form("register_form"):
+                        reg_email = st.text_input(t('email'), key="reg_email")
+                        reg_password = st.text_input(t('password'), type="password", key="reg_pass")
+                        reg_password2 = st.text_input(t('confirm_password'), type="password", key="reg_pass2")
+                        reg_submit = st.form_submit_button(t('create_account'), use_container_width=True)
 
-                            if reg_submit:
-                                if not reg_email or not reg_password:
-                                    st.warning("Please fill all fields")
-                                elif reg_password != reg_password2:
-                                    st.error("Passwords don't match")
-                                elif len(reg_password) < 6:
-                                    st.error("Password must be at least 6 characters")
+                        if reg_submit:
+                            if not supabase_configured:
+                                st.error(t('supabase_not_configured'))
+                            elif not reg_email or not reg_password:
+                                st.warning(t('fill_all_fields'))
+                            elif reg_password != reg_password2:
+                                st.error(t('passwords_dont_match'))
+                            elif len(reg_password) < 6:
+                                st.error(t('password_too_short'))
+                            else:
+                                result = SupabaseAuth.sign_up(reg_email, reg_password)
+                                if result.get("success"):
+                                    st.success(t('account_created'))
                                 else:
-                                    result = SupabaseAuth.sign_up(reg_email, reg_password)
-                                    if result.get("success"):
-                                        st.success("Account created! Please check your email to confirm.")
-                                    else:
-                                        st.error(result.get("error", "Registration failed"))
+                                    st.error(result.get("error", t('login_failed')))
 
         st.divider()
 

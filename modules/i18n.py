@@ -348,6 +348,10 @@ TRANSLATIONS = {
         'en': 'Please enter email and password',
         'pl': 'Proszę podać email i hasło',
     },
+    'supabase_not_configured': {
+        'en': 'Authentication is not configured. Set Supabase credentials in .streamlit/secrets.toml to enable login.',
+        'pl': 'Uwierzytelnianie nie jest skonfigurowane. Ustaw dane Supabase w .streamlit/secrets.toml, aby włączyć logowanie.',
+    },
 
     # --- Tier limits ---
     'guest_periods_limit': {
