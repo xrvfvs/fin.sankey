@@ -31,5 +31,8 @@ sendgrid>=6.10.0
 # Caching
 redis>=5.0.0
 
-# HTTP Client
+# HTTP Client & Scraping
 requests>=2.31.0
+requests-cache
+requests-ratelimiter
+fake-useragent

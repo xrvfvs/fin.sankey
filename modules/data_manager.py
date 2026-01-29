@@ -89,6 +89,7 @@ class DataManager:
     @retry_on_rate_limit(max_retries=3, base_delay=2)
     def get_financials(ticker_symbol):
         try:
+            # Standard yfinance call - let the library handle sessions/headers
             ticker = yf.Ticker(ticker_symbol)
 
             # Force fetching to check if data exists
