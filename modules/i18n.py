@@ -349,8 +349,12 @@ TRANSLATIONS = {
         'pl': 'Proszę podać email i hasło',
     },
     'supabase_not_configured': {
-        'en': 'Authentication is not configured. Set Supabase credentials in .streamlit/secrets.toml to enable login.',
-        'pl': 'Uwierzytelnianie nie jest skonfigurowane. Ustaw dane Supabase w .streamlit/secrets.toml, aby włączyć logowanie.',
+        'en': 'User accounts are not available on this instance. The app works in demo mode with full analysis features.',
+        'pl': 'Konta użytkowników nie są dostępne na tej instancji. Aplikacja działa w trybie demo z pełnymi funkcjami analizy.',
+    },
+    'supabase_not_configured_admin': {
+        'en': 'To enable authentication, configure Supabase credentials in .streamlit/secrets.toml. See secrets.toml.example for details.',
+        'pl': 'Aby włączyć uwierzytelnianie, skonfiguruj dane Supabase w .streamlit/secrets.toml. Szczegóły w secrets.toml.example.',
     },
 
     # --- Tier limits ---

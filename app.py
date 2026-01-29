@@ -319,55 +319,53 @@ def main():
                         st.session_state["user"] = None
                         st.rerun()
         else:
-            # Login/Register - always visible
-            with st.expander(t('login'), expanded=True):
-                if not supabase_configured:
+            if not supabase_configured:
+                # Auth not available - show concise info, no forms
+                with st.expander(t('login'), expanded=False):
                     st.info(t('supabase_not_configured'))
+            else:
+                # Login/Register forms
+                with st.expander(t('login'), expanded=True):
+                    auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
 
-                auth_tab1, auth_tab2 = st.tabs([t('login'), t('register')])
+                    with auth_tab1:
+                        with st.form("login_form"):
+                            login_email = st.text_input(t('email'), key="login_email")
+                            login_password = st.text_input(t('password'), type="password", key="login_pass")
+                            login_submit = st.form_submit_button(t('login'), use_container_width=True)
 
-                with auth_tab1:
-                    with st.form("login_form"):
-                        login_email = st.text_input(t('email'), key="login_email")
-                        login_password = st.text_input(t('password'), type="password", key="login_pass")
-                        login_submit = st.form_submit_button(t('login'), use_container_width=True)
-
-                        if login_submit:
-                            if not supabase_configured:
-                                st.error(t('supabase_not_configured'))
-                            elif login_email and login_password:
-                                result = SupabaseAuth.sign_in(login_email, login_password)
-                                if result.get("success"):
-                                    st.session_state["user"] = result["user"]
-                                    st.success(t('login_success'))
-                                    st.rerun()
+                            if login_submit:
+                                if login_email and login_password:
+                                    result = SupabaseAuth.sign_in(login_email, login_password)
+                                    if result.get("success"):
+                                        st.session_state["user"] = result["user"]
+                                        st.success(t('login_success'))
+                                        st.rerun()
+                                    else:
+                                        st.error(result.get("error", t('login_failed')))
                                 else:
-                                    st.error(result.get("error", t('login_failed')))
-                            else:
-                                st.warning(t('enter_email_password'))
+                                    st.warning(t('enter_email_password'))
 
-                with auth_tab2:
-                    with st.form("register_form"):
-                        reg_email = st.text_input(t('email'), key="reg_email")
-                        reg_password = st.text_input(t('password'), type="password", key="reg_pass")
-                        reg_password2 = st.text_input(t('confirm_password'), type="password", key="reg_pass2")
-                        reg_submit = st.form_submit_button(t('create_account'), use_container_width=True)
+                    with auth_tab2:
+                        with st.form("register_form"):
+                            reg_email = st.text_input(t('email'), key="reg_email")
+                            reg_password = st.text_input(t('password'), type="password", key="reg_pass")
+                            reg_password2 = st.text_input(t('confirm_password'), type="password", key="reg_pass2")
+                            reg_submit = st.form_submit_button(t('create_account'), use_container_width=True)
 
-                        if reg_submit:
-                            if not supabase_configured:
-                                st.error(t('supabase_not_configured'))
-                            elif not reg_email or not reg_password:
-                                st.warning(t('fill_all_fields'))
-                            elif reg_password != reg_password2:
-                                st.error(t('passwords_dont_match'))
-                            elif len(reg_password) < 6:
-                                st.error(t('password_too_short'))
-                            else:
-                                result = SupabaseAuth.sign_up(reg_email, reg_password)
-                                if result.get("success"):
-                                    st.success(t('account_created'))
+                            if reg_submit:
+                                if not reg_email or not reg_password:
+                                    st.warning(t('fill_all_fields'))
+                                elif reg_password != reg_password2:
+                                    st.error(t('passwords_dont_match'))
+                                elif len(reg_password) < 6:
+                                    st.error(t('password_too_short'))
                                 else:
-                                    st.error(result.get("error", t('login_failed')))
+                                    result = SupabaseAuth.sign_up(reg_email, reg_password)
+                                    if result.get("success"):
+                                        st.success(t('account_created'))
+                                    else:
+                                        st.error(result.get("error", t('login_failed')))
 
         st.divider()
 
