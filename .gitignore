@@ -48,3 +48,6 @@ reports/
 .report_cache/
 *.pdf
 logs/
+
+# yfinance HTTP cache
+yfinance.cache
