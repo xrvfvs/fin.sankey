@@ -6,6 +6,7 @@ streamlit>=1.29.0
 
 # Financial Data
 yfinance>=0.2.31
+lxml>=5.0.0
 
 # Visualization
 plotly>=5.18.0
