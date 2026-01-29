@@ -7,7 +7,7 @@ import pandas as pd
 import yfinance as yf
 import streamlit as st
 
-from modules.utils import retry_on_rate_limit
+from modules.utils import retry_on_rate_limit, get_yf_ticker
 from modules.logger import log_error, log_warning, log_debug, log_api_call
 
 
@@ -86,11 +86,10 @@ class DataManager:
 
     @staticmethod
     @st.cache_data(ttl=3600)
-    @retry_on_rate_limit(max_retries=3, base_delay=2)
+    @retry_on_rate_limit(max_retries=5, base_delay=3)
     def get_financials(ticker_symbol):
         try:
-            # Standard yfinance call - let the library handle sessions/headers
-            ticker = yf.Ticker(ticker_symbol)
+            ticker = get_yf_ticker(ticker_symbol)
 
             # Force fetching to check if data exists
             income_stmt = ticker.income_stmt
@@ -114,7 +113,15 @@ class DataManager:
         except Exception as e:
             log_error(e, f"Error fetching data for {ticker_symbol}")
             log_api_call("yfinance", ticker=ticker_symbol, success=False)
-            st.error(f"Error fetching data for {ticker_symbol}: {e}")
+            error_msg = str(e).lower()
+            if "too many requests" in error_msg or "rate" in error_msg or "429" in error_msg:
+                st.error(
+                    f"Rate limit reached while fetching data for {ticker_symbol}. "
+                    "Yahoo Finance limits the number of requests. "
+                    "Please wait a minute and try again."
+                )
+            else:
+                st.error(f"Error fetching data for {ticker_symbol}: {e}")
             return None
 
     @staticmethod

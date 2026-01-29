@@ -9,10 +9,12 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 from modules.logger import log_error, log_warning, log_api_call
+from modules.utils import retry_on_rate_limit, get_yf_ticker
 from modules.i18n import t
 
 
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
+@retry_on_rate_limit(max_retries=5, base_delay=3)
 def fetch_news(ticker_symbol: str, max_items: int = 10) -> List[Dict]:
     """
     Fetch news articles for a given ticker.
@@ -25,7 +27,7 @@ def fetch_news(ticker_symbol: str, max_items: int = 10) -> List[Dict]:
         List of news article dictionaries
     """
     try:
-        ticker = yf.Ticker(ticker_symbol)
+        ticker = get_yf_ticker(ticker_symbol)
         news = ticker.news
 
         if not news:

@@ -52,6 +52,22 @@ class TestRetryOnRateLimit:
         assert result == "success"
         assert call_count == 3
 
+    def test_retry_on_429_error(self):
+        """Test that HTTP 429 errors trigger retries."""
+        call_count = 0
+
+        @retry_on_rate_limit(max_retries=3, base_delay=0.01)
+        def http_429_func():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise Exception("429 Client Error: Too Many Requests")
+            return "success"
+
+        result = http_429_func()
+        assert result == "success"
+        assert call_count == 2
+
     def test_non_rate_limit_error_raises(self):
         """Test that non-rate-limit errors are raised immediately."""
         call_count = 0

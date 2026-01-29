@@ -10,6 +10,7 @@ from typing import List, Dict, Optional
 from enum import Enum
 
 from modules.logger import log_error, log_warning, log_info, log_user_action
+from modules.utils import retry_on_rate_limit, get_yf_ticker
 from modules.i18n import t
 
 
@@ -29,6 +30,7 @@ ALERT_TYPE_LABELS = {
 
 
 @st.cache_data(ttl=60)  # Cache for 1 minute
+@retry_on_rate_limit(max_retries=5, base_delay=3)
 def get_current_price(ticker_symbol: str) -> Optional[float]:
     """
     Get current stock price.
@@ -40,7 +42,7 @@ def get_current_price(ticker_symbol: str) -> Optional[float]:
         Current price or None if failed
     """
     try:
-        ticker = yf.Ticker(ticker_symbol)
+        ticker = get_yf_ticker(ticker_symbol)
         info = ticker.info
         price = info.get('currentPrice') or info.get('regularMarketPrice')
         return float(price) if price else None

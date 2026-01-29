@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 
 from modules.logger import log_error, log_warning, log_api_call
+from modules.utils import retry_on_rate_limit, get_yf_ticker
 from modules.i18n import t
 
 
@@ -90,6 +91,8 @@ def calculate_ema(prices: pd.Series, period: int) -> pd.Series:
     return prices.ewm(span=period, adjust=False).mean()
 
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+@retry_on_rate_limit(max_retries=5, base_delay=3)
 def get_technical_signals(ticker_symbol: str, period: str = "6mo") -> Dict:
     """
     Get technical analysis signals for a stock.
@@ -102,7 +105,7 @@ def get_technical_signals(ticker_symbol: str, period: str = "6mo") -> Dict:
         Dictionary with technical indicators and signals
     """
     try:
-        ticker = yf.Ticker(ticker_symbol)
+        ticker = get_yf_ticker(ticker_symbol)
         hist = ticker.history(period=period)
 
         if hist.empty or len(hist) < 30:
@@ -198,6 +201,7 @@ def get_technical_signals(ticker_symbol: str, period: str = "6mo") -> Dict:
 # --- PORTFOLIO FUNCTIONS ---
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
+@retry_on_rate_limit(max_retries=5, base_delay=3)
 def get_stock_price(ticker_symbol: str) -> Dict:
     """
     Get current stock price and daily change.
@@ -209,7 +213,7 @@ def get_stock_price(ticker_symbol: str) -> Dict:
         Dictionary with price data
     """
     try:
-        ticker = yf.Ticker(ticker_symbol)
+        ticker = get_yf_ticker(ticker_symbol)
         info = ticker.info
 
         current_price = info.get('currentPrice') or info.get('regularMarketPrice', 0)
