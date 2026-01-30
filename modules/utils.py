@@ -8,28 +8,11 @@ import pandas as pd
 import yfinance as yf
 from functools import wraps
 from io import BytesIO
-from requests import Session
-from requests_cache import CacheMixin, SQLiteCache
-from requests_ratelimiter import LimiterMixin, MemoryQueueBucket
-from pyrate_limiter import Duration, RequestRate, Limiter
-
-
-class CachedLimiterSession(CacheMixin, LimiterMixin, Session):
-    """Session class with caching and rate-limiting built in."""
-
-
-# Shared rate-limited + cached session for all yfinance calls.
-# Allows max 2 requests per 5 seconds to avoid Yahoo Finance 429 errors.
-_yf_session = CachedLimiterSession(
-    limiter=Limiter(RequestRate(2, Duration.SECOND * 5)),
-    bucket_class=MemoryQueueBucket,
-    backend=SQLiteCache("yfinance.cache", expire_after=300),
-)
 
 
 def get_yf_ticker(symbol: str) -> yf.Ticker:
-    """Create a yfinance Ticker using the shared rate-limited session."""
-    return yf.Ticker(symbol, session=_yf_session)
+    """Create a yfinance Ticker, letting yfinance manage its own session."""
+    return yf.Ticker(symbol)
 
 
 def retry_on_rate_limit(max_retries=5, base_delay=3):

@@ -33,7 +33,4 @@ redis>=5.0.0
 
 # HTTP Client & Scraping
 requests>=2.31.0
-requests-cache
-requests-ratelimiter
-pyrate-limiter
 fake-useragent
