@@ -30,17 +30,30 @@ class _RateLimiter:
             self._last_call = time.monotonic()
 
 
-# Global rate limiter: at most 1 request per 1.2 seconds to Yahoo Finance
-_yf_rate_limiter = _RateLimiter(min_interval=1.2)
+# Global rate limiter: at most 1 request per 0.75 seconds to Yahoo Finance.
+# This must be called before EACH property access (e.g. ticker.info,
+# ticker.income_stmt) because those are the actual HTTP calls, NOT the
+# yf.Ticker() constructor which makes no network requests.
+_yf_rate_limiter = _RateLimiter(min_interval=0.75)
+
+
+def yf_throttle():
+    """Wait for the global Yahoo Finance rate limiter.
+
+    Call this before every yfinance property access that triggers an HTTP
+    request (e.g. ticker.info, ticker.income_stmt, ticker.history()).
+    """
+    _yf_rate_limiter.wait()
 
 
 def get_yf_ticker(symbol: str) -> yf.Ticker:
-    """Create a yfinance Ticker, letting yfinance manage its own session.
+    """Create a yfinance Ticker object.
 
-    Waits for the global rate limiter before returning so that the
-    subsequent API call (e.g. ticker.info) respects Yahoo Finance limits.
+    Note: yf.Ticker() does NOT make any HTTP requests — the actual API
+    calls happen when you access properties like .info, .income_stmt, etc.
+    Rate limiting is therefore applied via yf_throttle() before each
+    property access, not here.
     """
-    _yf_rate_limiter.wait()
     return yf.Ticker(symbol)
 
 

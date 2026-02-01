@@ -7,7 +7,7 @@ import pandas as pd
 import yfinance as yf
 import streamlit as st
 
-from modules.utils import retry_on_rate_limit, get_yf_ticker
+from modules.utils import retry_on_rate_limit, get_yf_ticker, yf_throttle
 from modules.logger import log_error, log_warning, log_debug, log_api_call
 
 
@@ -91,13 +91,20 @@ class DataManager:
         try:
             ticker = get_yf_ticker(ticker_symbol)
 
-            # Force fetching to check if data exists
+            # Force fetching to check if data exists.
+            # Each property access triggers an HTTP request, so we
+            # throttle before each one to avoid Yahoo Finance 429 errors.
+            yf_throttle()
             income_stmt = ticker.income_stmt
+            yf_throttle()
             balance_sheet = ticker.balance_sheet
+            yf_throttle()
             info = ticker.info
 
             # Fetch extras (might fail)
+            yf_throttle()
             insider = getattr(ticker, 'insider_purchases', pd.DataFrame())
+            yf_throttle()
             recommendations = getattr(ticker, 'recommendations', pd.DataFrame())
 
             if income_stmt is None or income_stmt.empty:

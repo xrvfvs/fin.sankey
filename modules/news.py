@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 from modules.logger import log_error, log_warning, log_api_call
-from modules.utils import retry_on_rate_limit, get_yf_ticker
+from modules.utils import retry_on_rate_limit, get_yf_ticker, yf_throttle
 from modules.i18n import t
 
 
@@ -28,6 +28,7 @@ def fetch_news(ticker_symbol: str, max_items: int = 10) -> List[Dict]:
     """
     try:
         ticker = get_yf_ticker(ticker_symbol)
+        yf_throttle()
         news = ticker.news
 
         if not news:

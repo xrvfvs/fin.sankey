@@ -10,7 +10,7 @@ from typing import List, Dict, Optional
 from enum import Enum
 
 from modules.logger import log_error, log_warning, log_info, log_user_action
-from modules.utils import retry_on_rate_limit, get_yf_ticker
+from modules.utils import retry_on_rate_limit, get_yf_ticker, yf_throttle
 from modules.i18n import t
 
 
@@ -43,6 +43,7 @@ def get_current_price(ticker_symbol: str) -> Optional[float]:
     """
     try:
         ticker = get_yf_ticker(ticker_symbol)
+        yf_throttle()
         info = ticker.info
         price = info.get('currentPrice') or info.get('regularMarketPrice')
         return float(price) if price else None
